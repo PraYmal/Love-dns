@@ -514,6 +514,25 @@
   .task-done.armed{background:var(--green);color:#0d1a12;}
   .task-done:disabled{opacity:.6;}
   .task-cancel{background:none;border:none;color:var(--text-dim);text-decoration:underline;padding:12px 4px 2px;cursor:pointer;font-size:13px;}
+  /* ===== v24: очередь «Сейчас», фильтры витрины в админке ===== */
+  .task.now{border-left-color:var(--green);box-shadow:0 0 0 1px var(--green-dim), 0 6px 22px rgba(0,0,0,.25);background:var(--charcoal-800);}
+  .task-now{display:inline-block;font-size:12.5px;font-weight:700;color:var(--green);background:var(--green-dim);border-radius:999px;padding:3px 11px;margin-bottom:10px;}
+  .task-next{font-size:13px;font-weight:600;color:var(--text-dim);margin:18px 2px 8px;}
+  .task-sub{display:flex;gap:10px;align-items:center;flex-wrap:wrap;margin-top:6px;}
+  .task-later{background:var(--charcoal-700);border:1px solid var(--line);color:var(--text);border-radius:10px;font:inherit;font-size:13.5px;padding:9px 14px;cursor:pointer;min-height:40px;}
+  .task-sub .task-cancel{padding:9px 4px;}
+  .tag-later{background:var(--charcoal-700);color:var(--text-dim);border-radius:999px;font-size:11.5px;font-weight:600;padding:2px 9px;}
+  .adm-fgrid{display:grid;grid-template-columns:repeat(auto-fill,minmax(190px,1fr));gap:10px;margin-bottom:10px;}
+  .adm-f{display:flex;flex-direction:column;gap:4px;min-width:0;}
+  .adm-f.wide{grid-column:1/-1;}
+  .adm-f label{font-size:12px;color:var(--text-dim);}
+  .adm-f input[type=text],.adm-f input[type=number],.adm-f .adm-select{width:100%;}
+  .adm-fchecks{display:flex;flex-wrap:wrap;gap:6px 18px;margin:4px 0 12px;font-size:13.5px;}
+  .adm-fchecks label{display:flex;gap:7px;align-items:center;cursor:pointer;}
+  .adm-crumbs{font-size:12.5px;color:var(--orange-soft);margin:0 0 10px;}
+  .cat-bar.clickable{cursor:pointer;border-radius:8px;padding:3px 6px;margin-left:-6px;margin-right:-6px;}
+  .cat-bar.clickable:hover{background:var(--charcoal-700);}
+  pre.code-block{background:var(--charcoal-900);border:1px solid var(--line);border-radius:10px;padding:12px;overflow:auto;font-size:12px;line-height:1.5;max-height:260px;font-family:"IBM Plex Mono",ui-monospace,monospace;white-space:pre;}
   @media (max-width:640px){
     :root{--navh:calc(58px + env(safe-area-inset-bottom));}
     .show-sm{display:inline-flex;}
@@ -674,7 +693,7 @@
       <label class="muted" style="display:block;margin:10px 0 6px;">Сотрудник</label>
       <div class="employee-list" id="displayEmployeeList"></div>
       <div id="dataWarn"></div>
-      <div class="dash-strip" id="dashHead"><span class="dash-txt">Сводка загружается…</span></div>
+      <details class="dash" id="dashBox" open><summary id="dashHead"><span class="dash-txt">Сводка загружается…</span></summary><div id="displaySummary"></div></details>
     </div>
 
     <div class="card">
@@ -1331,6 +1350,7 @@ async function fetchConfig(){
     if(cfg && cfg.settings){
       appSettings = cfg.settings;
       if(Number(cfg.settings.stale_hours) > 0) STALE_HOURS = Number(cfg.settings.stale_hours);
+      if(cfg.settings.queue_order) QUEUE_ORDER = String(cfg.settings.queue_order);
       if(typeof cfg.settings.display_cell === 'string' && cfg.settings.display_cell.trim()) DISPLAY_CELL = cfg.settings.display_cell.trim();
       excludedCellRules = String(cfg.settings.excluded_cells || '').split(/[\n,;]+/).map(x => x.trim().toLowerCase()).filter(Boolean);
     }
@@ -1390,6 +1410,7 @@ function rowsToState(rows){
         completedAt: r.CompletedAt || null,
         completedBy: r.CompletedBy || '',
         employee: r.Employee || '',
+        deferredAt: Number(r.DeferredAt) || 0,
         articles: []
       });
     }
@@ -1436,6 +1457,7 @@ async function loadState(silent){
     return;
   }
   if(isLoading) return;
+  if(silent && opsInFlight > 0) return; // идёт наша операция: не затираем мгновенное обновление старыми данными
   isLoading = true;
   try{
     const rows = await apiGet();
@@ -1684,7 +1706,13 @@ document.querySelectorAll('.tab-btn').forEach(btn=>{
 
 document.getElementById('admGear').addEventListener('click', () => document.querySelector('.tab-btn[data-tab="admin"]').click());
 // фоновое автообновление раз в 20 секунд, пока вкладка открыта
-setInterval(()=>{ if(document.visibilityState === 'visible') loadState(true); }, 20000);
+(function pollLoop(){
+  const ms = () => { const a = document.querySelector('.tab-btn.active'); return a && (a.dataset.tab === 'tasks' || a.dataset.tab === 'display') ? 8000 : 20000; };
+  const tick = () => { if(document.visibilityState === 'visible') loadState(true); setTimeout(tick, ms()); };
+  setTimeout(tick, ms());
+  document.addEventListener('visibilitychange', () => { if(document.visibilityState === 'visible') loadState(true); });
+  window.addEventListener('focus', () => loadState(true));
+})();
 
 // ---------- автозаполнение ячеек (подсказки при вводе) ----------
 // Работает на всех полях ячейки (list="cellsList"), в том числе созданных позже: слушаем документ.
@@ -1879,34 +1907,88 @@ function wireQtyStepper(container, getValue, onChange){
 }
 
 // ---------- complete a transfer ----------
-async function completeTransfer(id){
-  const tr = state.transfers.find(t=>t.id===id);
-  if(!tr || tr.status === 'done') return;
+// Все операции применяются на экране сразу, а на сервер уходят в фоне. Сообщения в Telegram сервер обновляет
+// отдельным запросом (tg_sync), который страница не ждёт, — поэтому кнопка отзывается мгновенно.
+function fireAndForget(payload){
   try{
-    await apiPost({ action:'complete', id, completedAt: new Date().toISOString() });
-    showToast('Перемещение завершено, остатки обновлены');
+    fetch(APPS_SCRIPT_URL, { method: 'POST', headers: { 'Content-Type': 'text/plain;charset=utf-8' }, body: JSON.stringify(payload), keepalive: true })
+      .catch(() => setTimeout(() => { apiPost(payload).catch(() => {}); }, 3000));
+  }catch(e){}
+}
+let projTimer = null;
+function scheduleProjectionSync(){ clearTimeout(projTimer); projTimer = setTimeout(() => syncProjectionToSheet(true), 5000); }
+function repaintNow(){ lastRowsRaw = null; rebuildVitrinaItems(); render(); }
+
+async function completeMany(ids){
+  const when = new Date().toISOString();
+  const snap = state.transfers.filter(t => ids.includes(t.id)).map(t => ({ id: t.id, status: t.status, completedAt: t.completedAt }));
+  state.transfers.forEach(t => { if(ids.includes(t.id)){ t.status = 'done'; t.completedAt = when; } });
+  repaintNow();
+  opsInFlight++;
+  let ok = false;
+  try{
+    await apiPost(ids.length === 1 ? { action: 'complete', id: ids[0], completedAt: when, deferTg: true } : { action: 'complete_many', ids, completedAt: when, deferTg: true });
+    ok = true;
+    fireAndForget({ action: 'tg_sync', items: ids.map(id => ({ id, status: 'done' })) });
+    showToast(ids.length > 1 ? 'Выполнено: ' + ids.length : 'Перемещение завершено, остатки обновлены');
     vibrateOk();
-    await loadState();
-    syncProjectionToSheet(true); // в фоне, без блокировки интерфейса и без лишних тостов
+    scheduleProjectionSync();
   }catch(e){
-    showToast('Не удалось завершить перемещение. Проверьте подключение.');
-  }
+    state.transfers.forEach(t => { const sn = snap.find(x => x.id === t.id); if(sn){ t.status = sn.status; t.completedAt = sn.completedAt; } });
+    repaintNow();
+    showToast('Не удалось завершить. Проверьте подключение.');
+  }finally{ opsInFlight--; }
+  lastRowsRaw = null; loadState(true);
+  return ok;
+}
+async function completeTransfer(id){
+  const tr = state.transfers.find(t => t.id === id);
+  if(!tr || tr.status === 'done') return;
+  await completeMany([id]);
 }
 
-async function cancelTransfer(id){
-  const tr = state.transfers.find(t=>t.id===id);
-  if(!tr) return;
-  if(tr.status === 'done'){
-    showToast('Завершённое перемещение нельзя отменить');
-    return;
-  }
+async function cancelMany(ids){
+  const removed = state.transfers.filter(t => ids.includes(t.id));
+  const snaps = removed.map(t => ({ id: t.id, status: 'cancelled', snapshot: { source: t.sourceCell, dest: t.destCell, employee: t.employee, createdAt: t.createdAt, articles: t.articles } }));
+  state.transfers = state.transfers.filter(t => !ids.includes(t.id));
+  repaintNow();
+  opsInFlight++;
+  const okIds = [];
   try{
-    await apiPost({ action:'cancel', id });
-    showToast('Перемещение отменено');
-    await loadState();
+    for(const id of ids){ await apiPost({ action: 'cancel', id, deferTg: true }); okIds.push(id); }
+    fireAndForget({ action: 'tg_sync', items: snaps });
+    showToast(ids.length > 1 ? 'Отменено: ' + ids.length : 'Перемещение отменено');
   }catch(e){
-    showToast('Не удалось отменить перемещение. Проверьте подключение.');
-  }
+    const back = removed.filter(t => !okIds.includes(t.id));
+    state.transfers = state.transfers.concat(back);
+    if(okIds.length) fireAndForget({ action: 'tg_sync', items: snaps.filter(x => okIds.includes(x.id)) });
+    repaintNow();
+    showToast('Не удалось отменить. Проверьте подключение.');
+  }finally{ opsInFlight--; }
+  lastRowsRaw = null; loadState(true);
+}
+async function cancelTransfer(id){
+  const tr = state.transfers.find(t => t.id === id);
+  if(!tr) return;
+  if(tr.status === 'done'){ showToast('Завершённое перемещение нельзя отменить'); return; }
+  await cancelMany([id]);
+}
+async function deferMany(ids){
+  const prev = state.transfers.filter(t => ids.includes(t.id)).map(t => ({ id: t.id, d: t.deferredAt }));
+  let k = Date.now();
+  ids.forEach(id => { const t = state.transfers.find(x => x.id === id); if(t) t.deferredAt = k++; });
+  repaintNow();
+  opsInFlight++;
+  try{
+    await apiPost({ action: 'defer', ids, deferTg: true });
+    fireAndForget({ action: 'tg_sync', items: [] }); // обновить закреплённое «Сейчас» в Telegram
+    showToast('Отложено — в конец очереди');
+  }catch(e){
+    prev.forEach(p => { const t = state.transfers.find(x => x.id === p.id); if(t) t.deferredAt = p.d; });
+    repaintNow();
+    showToast('Не удалось отложить. Проверьте подключение.');
+  }finally{ opsInFlight--; }
+  lastRowsRaw = null; loadState(true);
 }
 
 // ---------- render history ----------
@@ -1920,6 +2002,8 @@ let historyEmployeeFilter = null; // null = показывать всех
 
 // Порог "зависшего" перемещения — моё предположение о разумном значении
 // для склада (4 часа). Легко изменить на своё число.
+let QUEUE_ORDER = 'fifo';
+let opsInFlight = 0;
 let STALE_HOURS = 4; // подтягивается из листа Settings (меняется в Админке)
 
 function renderHistoryEmployeeFilter(){
@@ -2013,9 +2097,9 @@ function articleNames(){
 }
 
 // ---------- вкладка «Задачи»: что кладовщику сделать ----------
-// Все ждущие перемещения, по одной карточке на пару «ячейка-источник → ячейка-получатель».
-// Крупная кнопка «Выполнено» срабатывает со второго нажатия (защита от случайного тапа).
-let tasksSort = 'cell', tasksQuery = '', tasksSig = null, tasksArmed = null, tasksArmTimer = null;
+// Первая невыполненная задача закреплена сверху («Сейчас») и остаётся первой, пока её не выполнят или не отложат
+// кнопкой «Позже» (тогда она уходит в конец). Порядок такой же, как у закреплённого сообщения в Telegram.
+let tasksSort = 'queue', tasksQuery = '', tasksSig = null, tasksArmed = null, tasksArmTimer = null;
 function taskAge_(iso){
   const m = Math.max(0, Math.round((Date.now() - new Date(iso).getTime()) / 60000));
   if(m < 1) return 'только что';
@@ -2023,6 +2107,37 @@ function taskAge_(iso){
   const h = Math.floor(m / 60);
   if(h < 24) return h + ' ч' + (m % 60 ? ' ' + (m % 60) + ' мин' : '') + ' назад';
   return Math.floor(h / 24) + ' д назад';
+}
+function queueOrder_(list){
+  const byTime = (a, b) => new Date(a.createdAt) - new Date(b.createdAt);
+  const byCell = (a, b) => String(cellCode(a.sourceCell)).localeCompare(String(cellCode(b.sourceCell)), 'en', { numeric: true }) || byTime(a, b);
+  const fresh = list.filter(t => !t.deferredAt).sort(QUEUE_ORDER === 'route' ? byCell : byTime);
+  const later = list.filter(t => t.deferredAt).sort((a, b) => a.deferredAt - b.deferredAt);
+  return fresh.concat(later);
+}
+function taskCardHtml_(g, names, staleMs, isNow, multi){
+  const qty = {};
+  g.trs.forEach(t => t.articles.forEach(a => { qty[a.article] = (qty[a.article] || 0) + a.qty; }));
+  const who = [...new Set(g.trs.map(t => t.employee).filter(Boolean))].join(', ') || '—';
+  const stale = Date.now() - new Date(g.oldest).getTime() > staleMs;
+  const ids = g.trs.map(t => t.id).join(',');
+  const code = cellCode(g.src);
+  return `<div class="task ${stale ? 'stale' : ''} ${isNow ? 'now' : ''}">
+      ${isNow ? '<div class="task-now">📌 Сейчас</div>' : ''}
+      <div class="task-head">
+        <button type="button" class="cell-tag" data-qr-cell="${escapeAttr(g.src)}">${escapeHtml(g.src)}</button>${code !== g.src ? `<span class="muted code">${escapeHtml(code)}</span>` : ''}
+        <span class="arrow-inline">→</span>
+        <button type="button" class="cell-tag" data-qr-cell="${escapeAttr(g.dst)}">${escapeHtml(g.dst)}</button>
+        ${isDisplayDest(g.dst) ? '<span class="tag-disp">витрина</span>' : ''}${g.later ? '<span class="tag-later">отложено</span>' : ''}
+      </div>
+      ${Object.entries(qty).map(([article, n]) => `<div class="task-line"><b class="q">×${n}</b><span><span class="sku">${escapeHtml(article)}</span> ${escapeHtml(names[article] || '')}</span></div>`).join('')}
+      <div class="task-meta">${escapeHtml(who)} · ${fmtDate(g.oldest)} · ${taskAge_(g.oldest)}${stale ? ` · <span style="color:var(--red);font-weight:600;">висит > ${STALE_HOURS} ч</span>` : ''}</div>
+      <button type="button" class="task-done" data-task-done="${escapeAttr(ids)}">✅ Выполнено</button>
+      <div class="task-sub">
+        ${multi ? `<button type="button" class="task-later" data-task-later="${escapeAttr(ids)}">⏭ Позже</button>` : ''}
+        <button type="button" class="task-cancel" data-task-cancel="${escapeAttr(ids)}">Отменить</button>
+      </div>
+    </div>`;
 }
 function renderTasks(){
   const wrap = document.getElementById('tasksWrap');
@@ -2036,23 +2151,25 @@ function renderTasks(){
   const doneToday = (state.transfers || []).filter(t => t.status === 'done' && t.completedAt && new Date(t.completedAt).toDateString() === today).length;
   const names = articleNames();
   const q = tasksQuery.toLowerCase().trim();
-  let list = pend;
+  const ordered = queueOrder_(pend);
+  let list = ordered;
   if(q) list = list.filter(t => (t.sourceCell + ' ' + cellCode(t.sourceCell) + ' ' + t.destCell + ' ' + (t.employee || '') + ' ' + t.articles.map(a => a.article + ' ' + (names[a.article] || '')).join(' ')).toLowerCase().includes(q));
   const sum = document.getElementById('tasksSum');
   if(sum){
     const pcs = pend.reduce((a,t) => a + t.articles.reduce((x,y) => x + y.qty, 0), 0);
     const cellsN = new Set(pend.map(t => t.sourceCell)).size;
+    const tail = `<span class="muted" style="display:block;font-size:12.5px;">сегодня выполнено: ${doneToday}</span>`;
     sum.innerHTML = pend.length
-      ? `<b>${pend.length}</b> ${pend.length === 1 ? 'перемещение' : 'перемещений'} · <b>${cellsN}</b> ${cellsN === 1 ? 'ячейка' : 'ячеек'} · <b>${pcs}</b> шт.${staleCnt ? ` · <span style="color:var(--red);">висят > ${STALE_HOURS} ч: <b>${staleCnt}</b></span>` : ''}<span class="muted" style="display:block;font-size:12.5px;">сегодня выполнено: ${doneToday}</span>`
-      : `Все перемещения выполнены<span class="muted" style="display:block;font-size:12.5px;">сегодня выполнено: ${doneToday}</span>`;
+      ? `<b>${pend.length}</b> ${pend.length === 1 ? 'перемещение' : 'перемещений'} · <b>${cellsN}</b> ${cellsN === 1 ? 'ячейка' : 'ячеек'} · <b>${pcs}</b> шт.${staleCnt ? ` · <span style="color:var(--red);">висят > ${STALE_HOURS} ч: <b>${staleCnt}</b></span>` : ''}${tail}`
+      : `Все перемещения выполнены${tail}`;
   }
   const sortWrap = document.getElementById('tasksSort');
   if(sortWrap && sortWrap.dataset.sel !== tasksSort){
     sortWrap.dataset.sel = tasksSort;
-    sortWrap.innerHTML = [['cell','По ячейкам'],['old','Сначала старые']].map(([v,l]) => `<button type="button" class="employee-btn ${tasksSort === v ? 'selected' : ''}" data-tsort="${v}">${l}</button>`).join('');
+    sortWrap.innerHTML = [['queue','По очереди'],['cell','По ячейкам'],['old','Сначала старые']].map(([v,l]) => `<button type="button" class="employee-btn ${tasksSort === v ? 'selected' : ''}" data-tsort="${v}">${l}</button>`).join('');
     sortWrap.querySelectorAll('[data-tsort]').forEach(b => b.addEventListener('click', () => { tasksSort = b.dataset.tsort; tasksSig = null; renderTasks(); }));
   }
-  const sig = [tasksSort, q, Object.keys(names).length, list.map(t => t.id).join(',')].join('|');
+  const sig = [tasksSort, q, QUEUE_ORDER, Object.keys(names).length, list.map(t => t.id + ':' + (t.deferredAt || 0)).join(',')].join('|');
   if(sig === tasksSig) return;
   tasksSig = sig; tasksArmed = null;
   if(list.length === 0){
@@ -2060,31 +2177,17 @@ function renderTasks(){
     return;
   }
   const groups = {};
-  list.forEach(t => { const k = t.sourceCell + '→' + t.destCell; (groups[k] = groups[k] || { src: t.sourceCell, dst: t.destCell, trs: [] }).trs.push(t); });
-  let arr = Object.values(groups);
+  list.forEach(t => { const k = t.sourceCell + '→' + t.destCell + '|' + (t.deferredAt ? 1 : 0); (groups[k] = groups[k] || { src: t.sourceCell, dst: t.destCell, later: !!t.deferredAt, trs: [] }).trs.push(t); });
+  const arr = Object.values(groups);
   arr.forEach(g => { g.trs.sort((a,b) => new Date(a.createdAt) - new Date(b.createdAt)); g.oldest = g.trs[0].createdAt; });
-  if(tasksSort === 'old') arr.sort((a,b) => new Date(a.oldest) - new Date(b.oldest));
-  else arr.sort((a,b) => String(cellCode(a.src)).localeCompare(String(cellCode(b.src)), 'en', { numeric: true }));
-  wrap.innerHTML = arr.map(g => {
-    const qty = {};
-    g.trs.forEach(t => t.articles.forEach(a => { qty[a.article] = (qty[a.article] || 0) + a.qty; }));
-    const who = [...new Set(g.trs.map(t => t.employee).filter(Boolean))].join(', ') || '—';
-    const stale = Date.now() - new Date(g.oldest).getTime() > staleMs;
-    const ids = g.trs.map(t => t.id).join(',');
-    const code = cellCode(g.src);
-    return `<div class="task ${stale ? 'stale' : ''}">
-      <div class="task-head">
-        <button type="button" class="cell-tag" data-qr-cell="${escapeAttr(g.src)}">${escapeHtml(g.src)}</button>${code !== g.src ? `<span class="muted code">${escapeHtml(code)}</span>` : ''}
-        <span class="arrow-inline">→</span>
-        <button type="button" class="cell-tag" data-qr-cell="${escapeAttr(g.dst)}">${escapeHtml(g.dst)}</button>
-        ${isDisplayDest(g.dst) ? '<span class="tag-disp">витрина</span>' : ''}
-      </div>
-      ${Object.entries(qty).map(([article, n]) => `<div class="task-line"><b class="q">×${n}</b><span><span class="sku">${escapeHtml(article)}</span> ${escapeHtml(names[article] || '')}</span></div>`).join('')}
-      <div class="task-meta">${escapeHtml(who)} · ${fmtDate(g.oldest)} · ${taskAge_(g.oldest)}${stale ? ` · <span style="color:var(--red);font-weight:600;">висит > ${STALE_HOURS} ч</span>` : ''}</div>
-      <button type="button" class="task-done" data-task-done="${escapeAttr(ids)}">✅ Выполнено</button>
-      <button type="button" class="task-cancel" data-task-cancel="${escapeAttr(ids)}">Отменить</button>
-    </div>`;
-  }).join('');
+  const multi = arr.length > 1;
+  // закреплённая «Сейчас»: самая первая в очереди (поиск не меняет — но если она не подходит под поиск, закрепления нет)
+  const nowGroup = (!q && arr.length) ? arr[0] : null;
+  let rest = nowGroup ? arr.slice(1) : arr.slice();
+  if(tasksSort === 'old') rest.sort((a,b) => new Date(a.oldest) - new Date(b.oldest));
+  else if(tasksSort === 'cell') rest.sort((a,b) => String(cellCode(a.src)).localeCompare(String(cellCode(b.src)), 'en', { numeric: true }));
+  wrap.innerHTML = (nowGroup ? taskCardHtml_(nowGroup, names, staleMs, true, multi) : '')
+    + (rest.length ? `<div class="task-next">Дальше · ${rest.length}</div>` + rest.map(g => taskCardHtml_(g, names, staleMs, false, multi)).join('') : '');
   wrap.querySelectorAll('[data-qr-cell]').forEach(b => b.addEventListener('click', () => openQrModal(b.dataset.qrCell)));
   wrap.querySelectorAll('[data-task-done]').forEach(b => b.addEventListener('click', async () => {
     const ids = b.dataset.taskDone;
@@ -2095,45 +2198,20 @@ function renderTasks(){
       tasksArmTimer = setTimeout(() => { if(tasksArmed === ids){ tasksArmed = null; b.classList.remove('armed'); b.textContent = '✅ Выполнено'; } }, 4000);
       return;
     }
-    clearTimeout(tasksArmTimer); tasksArmed = null; b.disabled = true; b.textContent = 'Отмечаю…';
+    clearTimeout(tasksArmTimer); tasksArmed = null; b.disabled = true;
+    tasksSig = null;
     await completeMany(ids.split(','));
-    tasksSig = null; renderTasks();
   }));
+  wrap.querySelectorAll('[data-task-later]').forEach(b => b.addEventListener('click', async () => { tasksSig = null; await deferMany(b.dataset.taskLater.split(',')); }));
   wrap.querySelectorAll('[data-task-cancel]').forEach(b => b.addEventListener('click', async () => {
     if(!confirm('Отменить эти перемещения?')) return;
+    tasksSig = null;
     await cancelMany(b.dataset.taskCancel.split(','));
-    tasksSig = null; renderTasks();
   }));
 }
 function renderPickList(){ renderTasks(); }
 document.getElementById('tasksSearch').addEventListener('input', e => { tasksQuery = e.target.value; renderTasks(); });
 
-async function completeMany(ids){
-  try{
-    for(const id of ids){
-      await apiPost({ action:'complete', id, completedAt: new Date().toISOString() });
-    }
-    showToast('Выставлено, остатки обновлены');
-    vibrateOk();
-    lastRowsRaw = null;
-    await loadState();
-    syncProjectionToSheet(true);
-  }catch(e){
-    showToast('Не удалось завершить. Проверьте подключение.');
-    lastRowsRaw = null; loadState(true);
-  }
-}
-async function cancelMany(ids){
-  try{
-    for(const id of ids){ await apiPost({ action:'cancel', id }); }
-    showToast('Отменено');
-    lastRowsRaw = null;
-    await loadState();
-  }catch(e){
-    showToast('Не удалось отменить. Проверьте подключение.');
-    lastRowsRaw = null; loadState(true);
-  }
-}
 
 function renderHistory(){
   renderPickList();
@@ -2669,6 +2747,8 @@ function renderDisplaySummary(scope, calc, caption){
   const pct = totalPcs > 0 ? Math.min(1, onPcs / totalPcs) : 0;
   const dh = document.getElementById('dashHead');
   if(dh) dh.innerHTML = `<span class="dash-pct">${Math.round(pct * 100)}%</span><span class="dash-txt">выставлено · ${pos ? dispPos + ' из ' + real.length + ' поз.' : onPcs + ' из ' + totalPcs + ' шт.'}${caption ? '<br>' + escapeHtml(caption) : ''}</span>`;
+  const sm = document.getElementById('displaySummary');
+  if(sm) sm.innerHTML = summaryBodyHtml(scope, calc, displayTilesHtml(scope, calc), caption);
 }
 
 // плитки под кольцом (используются в админке: раздел «Витрина»)
@@ -2690,7 +2770,8 @@ function displayTilesHtml(scope, calc){
       <div class="disp-stat"><div class="v">${totalQueued}</div><div class="l">шт. ждут кладовщика</div></div>`;
 }
 
-function summaryBodyHtml(scope, calc, tiles, caption){
+function summaryBodyHtml(scope, calc, tiles, caption, opts){
+  opts = opts || {};
   // «Выставлено X%» — по штукам: сумма «на витрине» / сумма «остаток» по всей выгрузке.
   // Это моё определение; формулу «Витрина % общий» из вашего Power BI прочитать не удалось,
   // поэтому цифра может отличаться от неё.
@@ -2709,12 +2790,17 @@ function summaryBodyHtml(scope, calc, tiles, caption){
   const off = C * (1 - pct);
   const cats = {};
   scope.forEach(i => {
-    const k = i.cat1 || 'Без категории';
+    const k = opts.keyFn ? opts.keyFn(i) : (i.cat1 || 'Без категории');
     (cats[k] = cats[k] || { on: 0, total: 0 });
     if(pos){ if(i.total > 0){ cats[k].total += 1; if(i.on > 0) cats[k].on += 1; } }
     else { cats[k].on += i.on; cats[k].total += i.total; }
   });
-  const catRows = Object.entries(cats).filter(([,c]) => c.total > 0).sort((a,b) => (a[1].on / a[1].total) - (b[1].on / b[1].total));
+  let catRows = Object.entries(cats).filter(([,c]) => c.total > 0);
+  if(opts.sort === 'qty') catRows.sort((a,b) => (b[1].total - b[1].on) - (a[1].total - a[1].on));
+  else if(opts.sort === 'name') catRows.sort((a,b) => a[0].localeCompare(b[0], 'ru'));
+  else catRows.sort((a,b) => (a[1].on / a[1].total) - (b[1].on / b[1].total));
+  const catTotalRows = catRows.length;
+  if(opts.limit && catRows.length > opts.limit) catRows = catRows.slice(0, opts.limit);
   return `
     <div class="ring-wrap">
       <div class="ring" title="${pos ? 'Позиций, у которых на витрине есть хотя бы 1 шт.' : 'Выставлено штук от общего остатка'}">
@@ -2732,9 +2818,9 @@ function summaryBodyHtml(scope, calc, tiles, caption){
     </div>
     <div class="cat-bars">${catRows.map(([name, c]) => {
       const p = c.on / c.total;
-      return `<div class="cat-bar"><div class="top"><span>${escapeHtml(name)}</span><b>${Math.round(p * 100)}% · ${c.on}/${c.total} ${unit}</b></div>
+      return `<div class="cat-bar ${opts.clickable ? 'clickable' : ''}" ${opts.clickable ? `data-bar="${escapeAttr(name)}" title="Нажмите, чтобы отфильтровать"` : ''}><div class="top"><span>${escapeHtml(name)}</span><b>${Math.round(p * 100)}% · ${c.on}/${c.total} ${unit}</b></div>
         <div class="track"><div class="fill ${p < 0.3 ? 'low' : (p >= 0.7 ? 'high' : '')}" style="width:${Math.round(p * 100)}%"></div></div></div>`;
-    }).join('')}</div>
+    }).join('')}${catRows.length < catTotalRows ? `<div class="muted" style="font-size:12.5px;">Показано ${catRows.length} из ${catTotalRows}</div>` : ''}</div>
     <div class="disp-stats">${tiles}</div>`;
 }
 
@@ -2747,7 +2833,7 @@ function renderDisplay(){
   const summary = document.getElementById('dashHead');
 
   if(vitrinaLoadError){
-    summary.innerHTML = '';
+    summary.innerHTML = ''; { const sm = document.getElementById('displaySummary'); if(sm) sm.innerHTML = ''; }
     wrap.innerHTML = `<div class="empty-state">Не удалось загрузить лист "vitrina": ${escapeHtml(vitrinaLoadError)}.<br>Загрузите выгрузку в админке (раздел «Данные») или проверьте, что лист "vitrina" есть и Code.gs обновлён.</div>`;
     return;
   }
@@ -2993,15 +3079,19 @@ async function sendCart(){
     const byCode = {};
     lines.forEach(l => { byCode[l.code] = (byCode[l.code] || 0) + l.qty; });
     try{
-      await apiPost({
-        action: 'add',
+      const tr = {
         id: 'tr_' + Date.now() + '_' + Math.random().toString(36).slice(2,7),
         createdAt: new Date().toISOString(),
         sourceCell: cell,
         destCell: DISPLAY_CELL,
         articles: Object.entries(byCode).map(([article, qty]) => ({ article, qty })),
         employee: selectedEmployee
-      });
+      };
+      opsInFlight++;
+      try{ await apiPost(Object.assign({ action: 'add', deferNotify: true }, tr)); } finally { opsInFlight--; }
+      // уведомление в Telegram — отдельным запросом, страница его не ждёт
+      fireAndForget(Object.assign({ action: 'notify' }, tr));
+      state.transfers.unshift({ id: tr.id, createdAt: tr.createdAt, sourceCell: cell, destCell: DISPLAY_CELL, status: 'pending', completedAt: null, completedBy: '', employee: selectedEmployee, deferredAt: 0, articles: tr.articles.map(a => ({ article: a.article, qty: a.qty })) });
       sent++;
       const ids = new Set(lines.map(l => l.id));
       displayCart = displayCart.filter(l => !ids.has(l.id));
@@ -3009,8 +3099,8 @@ async function sendCart(){
     }catch(e){ failed++; }
   }
   displayCreating = false; btn.disabled = false;
-  lastRowsRaw = null;
-  await loadState(true);
+  repaintNow();
+  loadState(true);
   if(failed === 0){
     showToast(`Отправлено кладовщику: ${plTransfers(sent)}`);
     vibrateOk();
@@ -3124,32 +3214,110 @@ function renderAdmin(){
   else renderAdminPassword(body);
 }
 
-let admShowCalc = 'pcs';
+const ADM_SHOW_DEF = { calc: 'pcs', show: 'all', cat1: '', cat: '', q: '', onlyCell: false, hideQueued: false, minNot: 0, groupBy: 'cat1', barSort: 'pct', barsN: 15, topN: 10, topSort: 'qty' };
+let admShow = Object.assign({}, ADM_SHOW_DEF);
+try { const sv = JSON.parse(localStorage.getItem('wt_adm_show') || 'null'); if(sv) admShow = Object.assign({}, ADM_SHOW_DEF, sv); } catch(e) {}
+function admShowSave(){ try { localStorage.setItem('wt_adm_show', JSON.stringify(admShow)); } catch(e) {} }
+function admShowScope_(universe){
+  const f = admShow;
+  const q = (f.q || '').toLowerCase().trim();
+  let sc = universe.filter(it => it.total > 0);
+  if(f.cat1) sc = sc.filter(it => (it.cat1 || 'Без категории') === f.cat1);
+  if(f.cat) sc = sc.filter(it => (it.cat || 'Без подкатегории') === f.cat);
+  if(q) sc = sc.filter(it => it.code.toLowerCase().includes(q) || it.name.toLowerCase().includes(q));
+  if(f.onlyCell) sc = sc.filter(it => it.cells.length > 0 || it.notOn === 0);
+  if(f.hideQueued) sc = sc.filter(it => !(it.notOn > 0 && it.need === 0));
+  if(f.minNot > 0) sc = sc.filter(it => it.notOn >= f.minNot);
+  if(f.show === 'zero') sc = sc.filter(it => it.notOn > 0 && it.on <= 0);
+  else if(f.show === 'partial') sc = sc.filter(it => it.notOn > 0 && it.on > 0);
+  else if(f.show === 'full') sc = sc.filter(it => it.notOn === 0);
+  else if(f.show === 'need') sc = sc.filter(it => it.notOn > 0);
+  return sc;
+}
+function admShowExport_(items){
+  const rows = [['Артикул', 'Название', 'Категория', 'Подкатегория', 'Остаток', 'На витрине', 'Не выставлено', '% на витрине', 'У кладовщика', 'Где лежит (свободно)']];
+  items.forEach(it => rows.push([it.code, it.name, it.cat1 || '', it.cat || '', it.total, it.on, it.notOn, Math.round(pctOf(it) * 100), it.queued || 0, it.cells.slice(0, 6).map(c => c.cell + ' ×' + c.qty).join('; ')]));
+  const wb = XLSX.utils.book_new(); const ws = XLSX.utils.aoa_to_sheet(rows);
+  ws['!cols'] = [{ wch: 10 }, { wch: 50 }, { wch: 22 }, { wch: 28 }, { wch: 9 }, { wch: 11 }, { wch: 14 }, { wch: 12 }, { wch: 12 }, { wch: 50 }];
+  XLSX.utils.book_append_sheet(wb, ws, 'Витрина');
+  const d = new Date(); XLSX.writeFile(wb, `vitrina_${d.getFullYear()}-${pad2(d.getMonth()+1)}-${pad2(d.getDate())}.xlsx`);
+}
 function renderAdminShowcase(body){
   if(vitrinaLoadError){ body.innerHTML = `<div class="card"><div class="empty-state">Не удалось загрузить лист «vitrina»: ${escapeHtml(vitrinaLoadError)}. Загрузите выгрузку в разделе «Данные».</div></div>`; return; }
   if(!vitrinaLoaded){ body.innerHTML = '<div class="card"><div class="empty-state">Лист «vitrina» ещё загружается…</div></div>'; return; }
+  const f = admShow;
   const { byArticle, pendingToDisplay } = buildDisplayIndex();
   const universe = vitrinaItems.map(it => {
     const queued = pendingToDisplay[it.code] || 0;
     return Object.assign({}, it, { queued, need: Math.max(0, it.notOn - queued), cells: byArticle[it.code] || [] });
   });
-  const scope = universe.filter(it => it.total > 0);
-  const top = scope.filter(it => it.notOn > 0).sort((a,b) => b.notOn - a.notOn).slice(0, 10);
+  const allReal = universe.filter(it => it.total > 0);
+  const cat1s = [...new Set(allReal.map(it => it.cat1 || 'Без категории'))].sort();
+  const subs = [...new Set(allReal.filter(it => !f.cat1 || (it.cat1 || 'Без категории') === f.cat1).map(it => it.cat || 'Без подкатегории'))].sort((a,b) => a.localeCompare(b, 'ru'));
+  if(f.cat && subs.indexOf(f.cat) === -1) f.cat = '';
+  const scope = admShowScope_(universe);
+  const touched = f.cat1 || f.cat || f.q || f.onlyCell || f.hideQueued || f.minNot > 0 || f.show !== 'all';
+  const crumbs = [f.cat1, f.cat, f.q ? '«' + f.q + '»' : '', f.minNot > 0 ? 'не менее ' + f.minNot + ' шт.' : ''].filter(Boolean).join(' › ');
+  const keyFn = f.groupBy === 'cat' ? (i => i.cat || 'Без подкатегории') : (i => i.cat1 || 'Без категории');
+  const sel = (id, label, opts, val) => `<div class="adm-f"><label for="${id}">${label}</label><select class="adm-select" id="${id}">${opts.map(([v, l]) => `<option value="${escapeAttr(String(v))}" ${String(v) === String(val) ? 'selected' : ''}>${escapeHtml(l)}</option>`).join('')}</select></div>`;
+  const top = scope.filter(it => it.notOn > 0).slice();
+  if(f.topSort === 'pct') top.sort((a,b) => pctOf(a) - pctOf(b) || b.notOn - a.notOn);
+  else if(f.topSort === 'name') top.sort((a,b) => a.name.localeCompare(b.name, 'ru'));
+  else top.sort((a,b) => b.notOn - a.notOn);
+  const topShown = top.slice(0, f.topN);
   body.innerHTML = `
     <div class="card">
-      <h2>Выставление на витрину <span>вся выгрузка «vitrina», без фильтров списка</span></h2>
-      <div class="employee-list" id="admShowCalc" style="margin-bottom:12px;">
-        <button type="button" class="employee-btn ${admShowCalc === 'pcs' ? 'selected' : ''}" data-calc="pcs">По штукам</button>
-        <button type="button" class="employee-btn ${admShowCalc === 'pos' ? 'selected' : ''}" data-calc="pos">По позициям</button>
+      <h2>Выставление на витрину <span>вся выгрузка «vitrina», с фильтрами</span></h2>
+      <div class="adm-fgrid">
+        <div class="adm-f wide"><label for="asQ">Поиск</label><input type="text" id="asQ" value="${escapeAttr(f.q)}" placeholder="Название или код товара"></div>
+        ${sel('asCat1', 'Категория', [['', 'Все категории']].concat(cat1s.map(c => [c, c])), f.cat1)}
+        ${sel('asCat', 'Подкатегория', [['', 'Все подкатегории']].concat(subs.map(c => [c, c])), f.cat)}
+        ${sel('asShow', 'Показывать', [['all', 'Все позиции'], ['need', 'Есть что выставить'], ['zero', 'Совсем нет на витрине'], ['partial', 'Выставлены частично'], ['full', 'Выставлены полностью']], f.show)}
+        ${sel('asCalc', 'Считать', [['pcs', 'По штукам'], ['pos', 'По позициям']], f.calc)}
+        ${sel('asMin', 'Не выставлено', [[0, 'любое количество'], [1, 'от 1 шт.'], [5, 'от 5 шт.'], [10, 'от 10 шт.'], [25, 'от 25 шт.'], [50, 'от 50 шт.'], [100, 'от 100 шт.']], f.minNot)}
+        ${sel('asGroup', 'Полосы по', [['cat1', 'категориям'], ['cat', 'подкатегориям']], f.groupBy)}
+        ${sel('asBarSort', 'Порядок полос', [['pct', 'худшие сверху (%)'], ['qty', 'больше не выставлено (шт.)'], ['name', 'по алфавиту']], f.barSort)}
+        ${sel('asBarsN', 'Полос показать', [[10, '10'], [15, '15'], [30, '30'], [100, 'все']], f.barsN)}
       </div>
-      ${summaryBodyHtml(scope, admShowCalc, displayTilesHtml(scope, admShowCalc), '')}
-      <p class="muted" style="font-size:12.5px;margin-top:12px;">Загружено: ${escapeHtml(fmtUploaded('vitrina'))}. «По позициям» — позиция выставлена, если на витрине есть хотя бы 1 шт.</p>
+      <div class="adm-fchecks">
+        <label class="disp-check"><input type="checkbox" id="asOnlyCell" ${f.onlyCell ? 'checked' : ''}> Только товары с известной ячейкой</label>
+        <label class="disp-check"><input type="checkbox" id="asHideQ" ${f.hideQueued ? 'checked' : ''}> Скрыть то, что уже у кладовщика</label>
+      </div>
+      <div class="adm-actions" style="margin:8px 0 14px;">
+        ${touched ? '<button type="button" class="btn btn-ghost btn-small" id="asReset">Сбросить фильтры</button>' : ''}
+        <button type="button" class="btn btn-ghost btn-small" id="asExport">⬇ Скачать Excel (${scope.filter(i => i.notOn > 0).length} невыставленных)</button>
+      </div>
+      ${crumbs ? `<div class="adm-crumbs">Срез: ${escapeHtml(crumbs)}</div>` : ''}
+      ${scope.length ? summaryBodyHtml(scope, f.calc, displayTilesHtml(scope, f.calc), '', { keyFn, sort: f.barSort, limit: f.barsN, clickable: true }) : '<div class="empty-state">Под эти фильтры ничего не подошло.</div>'}
+      <p class="muted" style="font-size:12.5px;margin-top:12px;">Загружено: ${escapeHtml(fmtUploaded('vitrina'))}. «По позициям» — позиция выставлена, если на витрине есть хотя бы 1 шт. Нажмите на полосу, чтобы отфильтровать по ней.</p>
     </div>
     <div class="card">
-      <h2>Больше всего не выставлено <span>10 позиций по количеству штук</span></h2>
-      ${top.length ? top.map(it => `<div class="adm-row"><div class="adm-main"><span class="sku">${escapeHtml(it.code)}</span> ${escapeHtml(it.name)}<div class="adm-sub">на витрине ${it.on} из ${it.total}${it.queued ? ` · у кладовщика: ${it.queued}` : ''}</div></div><b>${it.notOn}</b></div>`).join('') : '<div class="empty-state">Всё выставлено.</div>'}
+      <h2>Что выставлять в первую очередь <span>позиции из выбранного среза</span></h2>
+      <div class="adm-fgrid" style="margin-bottom:8px;">
+        ${sel('asTopN', 'Строк', [[10, '10'], [25, '25'], [50, '50'], [100, '100']], f.topN)}
+        ${sel('asTopSort', 'Сортировка', [['qty', 'больше всего не выставлено (шт.)'], ['pct', 'меньше всего на витрине (%)'], ['name', 'по названию']], f.topSort)}
+      </div>
+      ${topShown.length ? topShown.map(it => `<div class="adm-row"><div class="adm-main"><span class="sku">${escapeHtml(it.code)}</span> ${escapeHtml(it.name)}<div class="adm-sub">${escapeHtml(it.cat1 || '')}${it.cat ? ' › ' + escapeHtml(it.cat) : ''} · на витрине ${it.on} из ${it.total} (${Math.round(pctOf(it) * 100)}%)${it.queued ? ` · у кладовщика: ${it.queued}` : ''}${it.cells.length ? ` · лежит: ${it.cells.slice(0, 3).map(c => escapeHtml(c.cell) + ' ×' + c.qty).join(', ')}` : ' · свободной ячейки нет'}</div></div><b>${it.notOn}</b></div>`).join('') : '<div class="empty-state">Всё выставлено.</div>'}
+      ${top.length > topShown.length ? `<div class="muted" style="font-size:12.5px;margin-top:8px;">Показано ${topShown.length} из ${top.length}. Полный список — в Excel.</div>` : ''}
     </div>`;
-  body.querySelectorAll('#admShowCalc [data-calc]').forEach(b => b.addEventListener('click', () => { admShowCalc = b.dataset.calc; renderAdminShowcase(body); }));
+  const redo = () => { admShowSave(); renderAdminShowcase(body); };
+  const bind = (id, key, num, extra) => { const el = body.querySelector('#' + id); if(el) el.addEventListener('change', () => { f[key] = num ? Number(el.value) : el.value; if(extra) extra(); redo(); }); };
+  bind('asCat1', 'cat1', false, () => { f.cat = ''; });
+  bind('asCat', 'cat', false); bind('asShow', 'show', false); bind('asCalc', 'calc', false); bind('asMin', 'minNot', true);
+  bind('asGroup', 'groupBy', false); bind('asBarSort', 'barSort', false); bind('asBarsN', 'barsN', true);
+  bind('asTopN', 'topN', true); bind('asTopSort', 'topSort', false);
+  body.querySelector('#asOnlyCell').addEventListener('change', e => { f.onlyCell = e.target.checked; redo(); });
+  body.querySelector('#asHideQ').addEventListener('change', e => { f.hideQueued = e.target.checked; redo(); });
+  const qEl = body.querySelector('#asQ');
+  qEl.addEventListener('input', debounce(() => { f.q = qEl.value; admShowSave(); const pos = qEl.selectionStart; renderAdminShowcase(body); const n = body.querySelector('#asQ'); if(n){ n.focus(); try { n.setSelectionRange(pos, pos); } catch(e) {} } }, 350));
+  const rs = body.querySelector('#asReset'); if(rs) rs.addEventListener('click', () => { const keep = { calc: f.calc }; admShow = Object.assign({}, ADM_SHOW_DEF, keep); redo(); });
+  body.querySelector('#asExport').addEventListener('click', () => admShowExport_(scope.filter(i => i.notOn > 0).sort((a,b) => (a.cat1 || '').localeCompare(b.cat1 || '', 'ru') || b.notOn - a.notOn)));
+  body.querySelectorAll('[data-bar]').forEach(el => el.addEventListener('click', () => {
+    const name = el.dataset.bar;
+    if(f.groupBy === 'cat1'){ f.cat1 = name === 'Без категории' ? '' : name; f.cat = ''; f.groupBy = 'cat'; }
+    else { f.cat = name; }
+    redo();
+  }));
 }
 
 function renderAdminOverview(body){
@@ -3893,6 +4061,7 @@ async function renderAdminTelegram(body){
     ? (last.ok ? `<div class="adm-sub" style="color:var(--green);">Последняя отправка: ${escapeHtml(fmtDate(last.at))}${last.text ? ' · ' + escapeHtml(last.text) : ''}</div>`
                : `<div class="adm-sub" style="color:var(--red);">Последняя ошибка (${escapeHtml(fmtDate(last.at))}): ${escapeHtml(last.text || 'неизвестно')}</div>`)
     : '<div class="adm-sub">Отправок ещё не было.</div>';
+  const bd = (s && s.board) || {enabled:true, order:'fifo', note:''};
   const w = s && s.webhook;
   let webhookHtml = '';
   if(s && s.connected && w){
@@ -3957,11 +4126,58 @@ async function renderAdminTelegram(body){
         </div></div>
     </div>
     <div class="card">
+      <h2>Закреплённая задача «Сейчас»</h2>
+      <div class="adm-sub" style="line-height:1.55;margin:-4px 0 10px;">
+        В каждом чате бота одно закреплённое сообщение: <b>первая невыполненная задача</b> крупно, кнопки «✅ Выполнено» и «⏭ Позже» и список следующих. Оно обновляется само (без новых звуков), а задача остаётся первой, пока её не выполнят или не нажмут «Позже» — тогда она уходит в конец очереди. В группе боту нужно право закреплять сообщения. Кнопка «📌 Сейчас» (в группе — команда <code>/now</code>) присылает табло заново, если оно потерялось.
+      </div>
+      ${bd.note ? `<div class="adm-sub" style="color:var(--red);margin-bottom:8px;">${escapeHtml(bd.note)}</div>` : ''}
+      <div class="adm-row"><div class="adm-main">Табло<div class="adm-sub">${bd.enabled ? '✅ включено' : 'выключено'}</div></div>
+        <div class="adm-actions">
+          <select class="adm-select" id="tgBoardOrder" style="width:auto;"><option value="fifo" ${bd.order !== 'route' ? 'selected' : ''}>что пришло раньше — первым</option><option value="route" ${bd.order === 'route' ? 'selected' : ''}>по порядку ячеек (обход)</option></select>
+          <button type="button" class="btn btn-primary btn-small" id="tgBoardOn">${bd.enabled ? 'Сохранить' : 'Включить'}</button>
+          ${bd.enabled ? '<button type="button" class="btn btn-ghost btn-small" id="tgBoardOff">Выключить</button>' : ''}
+        </div></div>
+    </div>
+    <div class="card">
+      <h2>Ускорение нажатий из Telegram</h2>
+      <div class="adm-sub" style="line-height:1.55;margin:-4px 0 10px;">
+        Apps Script отвечает Telegram перенаправлением (код 302), поэтому Telegram считает доставку неудачной и может повторять её с задержками. Необязательное ускорение: небольшой прокси (бесплатный Cloudflare Worker) сразу отвечает Telegram «ок» и передаёт запрос в Apps Script. Я не мог проверить это на вашем аккаунте — после включения нажмите «Выполнил!» и посмотрите, стало ли быстрее; вернуть как было можно очисткой поля.
+      </div>
+      <details class="help"><summary>Код для Cloudflare Worker и порядок действий</summary>
+        <p>1) В Cloudflare: Workers &amp; Pages → Create → Worker → вставьте код ниже → Deploy. 2) В настройках Worker → Variables добавьте <code>SCRIPT_URL</code> = адрес вашего веб-приложения Apps Script (оканчивается на <code>/exec</code>). 3) Адрес Worker вставьте в поле ниже → «Применить».</p>
+        <pre class="code-block" id="tgWorkerCode">export default {
+  async fetch(request, env, ctx) {
+    if (request.method !== 'POST') return new Response('ok');
+    const target = env.SCRIPT_URL + new URL(request.url).search;
+    const body = await request.text();
+    ctx.waitUntil(fetch(target, { method: 'POST', headers: { 'content-type': 'text/plain;charset=utf-8' }, body, redirect: 'manual' }));
+    return new Response('ok', { status: 200 });
+  }
+}</pre>
+        <button type="button" class="btn btn-ghost btn-small" id="tgWorkerCopy">Скопировать код</button>
+      </details>
+      <div class="adm-add"><input type="text" id="tgProxy" value="${escapeAttr((s && s.webhookBase) || '')}" placeholder="https://имя.аккаунт.workers.dev (пусто — без прокси)"><button type="button" class="btn btn-primary" id="tgProxySave">Применить</button></div>
+    </div>
+    <div class="card">
       <h2>Запасной вариант: ссылки «QR»</h2>
       <div class="adm-sub" style="line-height:1.5;margin:-4px 0 10px;">Нужен только если картинку с QR отправить не удалось: тогда сообщение придёт текстом со ссылками «QR» на эту страницу (QR откроется крупно). Укажите адрес вашей страницы (GitHub Pages).</div>
       <div class="adm-add"><input type="text" id="tgSite" value="${escapeAttr(siteVal)}" placeholder="https://ваш-логин.github.io/репозиторий/"><button type="button" class="btn btn-primary" id="tgSiteSave">Сохранить адрес</button></div>
     </div>`;
   const redraw = async () => { await renderAdminTelegram(body); };
+  const boardCall = async (enabled) => {
+    try{ await adminCall({ action: 'admin_telegram_board', enabled, order: document.getElementById('tgBoardOrder').value }); QUEUE_ORDER = document.getElementById('tgBoardOrder').value; showToast(enabled ? 'Табло включено' : 'Табло выключено'); }
+    catch(e){ showToast(e.message || 'Не удалось сохранить'); }
+    redraw();
+  };
+  const bOn = document.getElementById('tgBoardOn'); if(bOn) bOn.addEventListener('click', () => boardCall(true));
+  const bOff = document.getElementById('tgBoardOff'); if(bOff) bOff.addEventListener('click', () => boardCall(false));
+  document.getElementById('tgProxySave').addEventListener('click', async () => {
+    try{ await adminCall({ action: 'admin_telegram_webhook', webhookBase: document.getElementById('tgProxy').value.trim(), scriptUrl: APPS_SCRIPT_URL }); showToast('Адрес вебхука обновлён'); redraw(); }
+    catch(e){ showToast(e.message || 'Не удалось применить'); }
+  });
+  document.getElementById('tgWorkerCopy').addEventListener('click', async () => {
+    try{ await navigator.clipboard.writeText(document.getElementById('tgWorkerCode').textContent); showToast('Код скопирован'); }catch(e){ showToast('Выделите код и скопируйте вручную'); }
+  });
   document.getElementById('tgConnect').addEventListener('click', async () => {
     const tok = document.getElementById('tgToken').value.trim();
     if(!tok){ showToast('Вставьте токен бота'); return; }
@@ -4267,6 +4483,11 @@ fetchVitrina();
 
 // ---------- v22: запоминаем вкладку и состояние сводки ----------
 (function(){
+  { const box = document.getElementById('dashBox');
+    if(box){ let open = window.innerWidth >= 700;
+      try { const v = localStorage.getItem('wt_dash'); if(v === '1') open = true; else if(v === '0') open = false; } catch(e) {}
+      box.open = open;
+      box.addEventListener('toggle', () => { try { localStorage.setItem('wt_dash', box.open ? '1' : '0'); } catch(e) {} }); } }
   try {
     const t = localStorage.getItem('wt_tab');
     if(t && t !== 'display'){ const b = document.querySelector('.tab-btn[data-tab="' + t + '"]'); if(b) b.click(); }
