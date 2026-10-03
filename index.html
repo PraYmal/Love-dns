@@ -228,6 +228,23 @@
     color:var(--text-dim);font-size:20px;cursor:pointer;line-height:1;
   }
   .qr-modal-box .qr-modal-close:hover{color:var(--text);}
+  .qr-modal-box.qr-wide{max-width:440px;}
+  .qr-modal-box.qr-big{max-width:min(96vw,92vh,780px);}
+  .qr-svg{display:block;width:100%;height:auto;background:#fff;border-radius:8px;}
+  .qr-pic{display:block;width:100%;max-width:100%;background:#fff;border-radius:8px;padding:8px;box-sizing:border-box;}
+  .qr-pic img{display:block;width:100%;height:auto;image-rendering:pixelated;}
+  .qr-click{cursor:zoom-in;border:0;background:none;padding:0;width:100%;}
+  .qr-actions{display:flex;gap:8px;justify-content:center;margin-top:12px;flex-wrap:wrap;}
+  .qr-box .qr-click{width:150px;flex:0 0 150px;}
+  .disp-cell-grp{display:inline-flex;align-items:stretch;}
+  .disp-cell-grp .disp-cell-btn{border-top-right-radius:0;border-bottom-right-radius:0;}
+  .disp-qr-btn{
+    background:var(--charcoal-700);border:1px solid var(--charcoal-600);border-left:0;color:var(--orange-soft);
+    padding:0 9px;border-radius:0 8px 8px 0;cursor:pointer;font-size:12px;font-weight:700;
+  }
+  .disp-qr-btn:hover{border-color:var(--orange);color:var(--text);}
+  .data-warn{margin:10px 0;padding:10px 12px;border-radius:8px;border:1px solid var(--red);background:rgba(255,90,90,.08);color:var(--text);font-size:13px;line-height:1.45;}
+  .cell-name[data-qr-cell]{cursor:pointer;text-decoration:underline dotted;text-underline-offset:3px;}
 
   .empty-state{
     text-align:center;padding:40px 20px;color:var(--text-dim);font-size:14px;
@@ -550,6 +567,7 @@
       </p>
       <label class="muted" style="display:block;margin:10px 0 6px;">Сотрудник</label>
       <div class="employee-list" id="displayEmployeeList"></div>
+      <div id="dataWarn"></div>
       <div id="displaySummary" style="margin-top:14px;"></div>
     </div>
 
@@ -1120,6 +1138,9 @@
 });
 
 </script>
+<script>/* qrcode-generator 1.4.4 (MIT, Kazuhiko Arase) */
+var qrcode=function(){var t=function(t,r){var e=t,n=g[r],o=null,i=0,a=null,u=[],f={},c=function(t,r){o=function(t){for(var r=new Array(t),e=0;e<t;e+=1){r[e]=new Array(t);for(var n=0;n<t;n+=1)r[e][n]=null}return r}(i=4*e+17),l(0,0),l(i-7,0),l(0,i-7),s(),h(),d(t,r),e>=7&&v(t),null==a&&(a=p(e,n,u)),w(a,r)},l=function(t,r){for(var e=-1;e<=7;e+=1)if(!(t+e<=-1||i<=t+e))for(var n=-1;n<=7;n+=1)r+n<=-1||i<=r+n||(o[t+e][r+n]=0<=e&&e<=6&&(0==n||6==n)||0<=n&&n<=6&&(0==e||6==e)||2<=e&&e<=4&&2<=n&&n<=4)},h=function(){for(var t=8;t<i-8;t+=1)null==o[t][6]&&(o[t][6]=t%2==0);for(var r=8;r<i-8;r+=1)null==o[6][r]&&(o[6][r]=r%2==0)},s=function(){for(var t=B.getPatternPosition(e),r=0;r<t.length;r+=1)for(var n=0;n<t.length;n+=1){var i=t[r],a=t[n];if(null==o[i][a])for(var u=-2;u<=2;u+=1)for(var f=-2;f<=2;f+=1)o[i+u][a+f]=-2==u||2==u||-2==f||2==f||0==u&&0==f}},v=function(t){for(var r=B.getBCHTypeNumber(e),n=0;n<18;n+=1){var a=!t&&1==(r>>n&1);o[Math.floor(n/3)][n%3+i-8-3]=a}for(n=0;n<18;n+=1){a=!t&&1==(r>>n&1);o[n%3+i-8-3][Math.floor(n/3)]=a}},d=function(t,r){for(var e=n<<3|r,a=B.getBCHTypeInfo(e),u=0;u<15;u+=1){var f=!t&&1==(a>>u&1);u<6?o[u][8]=f:u<8?o[u+1][8]=f:o[i-15+u][8]=f}for(u=0;u<15;u+=1){f=!t&&1==(a>>u&1);u<8?o[8][i-u-1]=f:u<9?o[8][15-u-1+1]=f:o[8][15-u-1]=f}o[i-8][8]=!t},w=function(t,r){for(var e=-1,n=i-1,a=7,u=0,f=B.getMaskFunction(r),c=i-1;c>0;c-=2)for(6==c&&(c-=1);;){for(var g=0;g<2;g+=1)if(null==o[n][c-g]){var l=!1;u<t.length&&(l=1==(t[u]>>>a&1)),f(n,c-g)&&(l=!l),o[n][c-g]=l,-1==(a-=1)&&(u+=1,a=7)}if((n+=e)<0||i<=n){n-=e,e=-e;break}}},p=function(t,r,e){for(var n=A.getRSBlocks(t,r),o=b(),i=0;i<e.length;i+=1){var a=e[i];o.put(a.getMode(),4),o.put(a.getLength(),B.getLengthInBits(a.getMode(),t)),a.write(o)}var u=0;for(i=0;i<n.length;i+=1)u+=n[i].dataCount;if(o.getLengthInBits()>8*u)throw"code length overflow. ("+o.getLengthInBits()+">"+8*u+")";for(o.getLengthInBits()+4<=8*u&&o.put(0,4);o.getLengthInBits()%8!=0;)o.putBit(!1);for(;!(o.getLengthInBits()>=8*u||(o.put(236,8),o.getLengthInBits()>=8*u));)o.put(17,8);return function(t,r){for(var e=0,n=0,o=0,i=new Array(r.length),a=new Array(r.length),u=0;u<r.length;u+=1){var f=r[u].dataCount,c=r[u].totalCount-f;n=Math.max(n,f),o=Math.max(o,c),i[u]=new Array(f);for(var g=0;g<i[u].length;g+=1)i[u][g]=255&t.getBuffer()[g+e];e+=f;var l=B.getErrorCorrectPolynomial(c),h=k(i[u],l.getLength()-1).mod(l);for(a[u]=new Array(l.getLength()-1),g=0;g<a[u].length;g+=1){var s=g+h.getLength()-a[u].length;a[u][g]=s>=0?h.getAt(s):0}}var v=0;for(g=0;g<r.length;g+=1)v+=r[g].totalCount;var d=new Array(v),w=0;for(g=0;g<n;g+=1)for(u=0;u<r.length;u+=1)g<i[u].length&&(d[w]=i[u][g],w+=1);for(g=0;g<o;g+=1)for(u=0;u<r.length;u+=1)g<a[u].length&&(d[w]=a[u][g],w+=1);return d}(o,n)};f.addData=function(t,r){var e=null;switch(r=r||"Byte"){case"Numeric":e=M(t);break;case"Alphanumeric":e=x(t);break;case"Byte":e=m(t);break;case"Kanji":e=L(t);break;default:throw"mode:"+r}u.push(e),a=null},f.isDark=function(t,r){if(t<0||i<=t||r<0||i<=r)throw t+","+r;return o[t][r]},f.getModuleCount=function(){return i},f.make=function(){if(e<1){for(var t=1;t<40;t++){for(var r=A.getRSBlocks(t,n),o=b(),i=0;i<u.length;i++){var a=u[i];o.put(a.getMode(),4),o.put(a.getLength(),B.getLengthInBits(a.getMode(),t)),a.write(o)}var g=0;for(i=0;i<r.length;i++)g+=r[i].dataCount;if(o.getLengthInBits()<=8*g)break}e=t}c(!1,function(){for(var t=0,r=0,e=0;e<8;e+=1){c(!0,e);var n=B.getLostPoint(f);(0==e||t>n)&&(t=n,r=e)}return r}())},f.createTableTag=function(t,r){t=t||2;var e="";e+='<table style="',e+=" border-width: 0px; border-style: none;",e+=" border-collapse: collapse;",e+=" padding: 0px; margin: "+(r=void 0===r?4*t:r)+"px;",e+='">',e+="<tbody>";for(var n=0;n<f.getModuleCount();n+=1){e+="<tr>";for(var o=0;o<f.getModuleCount();o+=1)e+='<td style="',e+=" border-width: 0px; border-style: none;",e+=" border-collapse: collapse;",e+=" padding: 0px; margin: 0px;",e+=" width: "+t+"px;",e+=" height: "+t+"px;",e+=" background-color: ",e+=f.isDark(n,o)?"#000000":"#ffffff",e+=";",e+='"/>';e+="</tr>"}return e+="</tbody>",e+="</table>"},f.createSvgTag=function(t,r,e,n){var o={};"object"==typeof arguments[0]&&(t=(o=arguments[0]).cellSize,r=o.margin,e=o.alt,n=o.title),t=t||2,r=void 0===r?4*t:r,(e="string"==typeof e?{text:e}:e||{}).text=e.text||null,e.id=e.text?e.id||"qrcode-description":null,(n="string"==typeof n?{text:n}:n||{}).text=n.text||null,n.id=n.text?n.id||"qrcode-title":null;var i,a,u,c,g=f.getModuleCount()*t+2*r,l="";for(c="l"+t+",0 0,"+t+" -"+t+",0 0,-"+t+"z ",l+='<svg version="1.1" xmlns="http://www.w3.org/2000/svg"',l+=o.scalable?"":' width="'+g+'px" height="'+g+'px"',l+=' viewBox="0 0 '+g+" "+g+'" ',l+=' preserveAspectRatio="xMinYMin meet"',l+=n.text||e.text?' role="img" aria-labelledby="'+y([n.id,e.id].join(" ").trim())+'"':"",l+=">",l+=n.text?'<title id="'+y(n.id)+'">'+y(n.text)+"</title>":"",l+=e.text?'<description id="'+y(e.id)+'">'+y(e.text)+"</description>":"",l+='<rect width="100%" height="100%" fill="white" cx="0" cy="0"/>',l+='<path d="',a=0;a<f.getModuleCount();a+=1)for(u=a*t+r,i=0;i<f.getModuleCount();i+=1)f.isDark(a,i)&&(l+="M"+(i*t+r)+","+u+c);return l+='" stroke="transparent" fill="black"/>',l+="</svg>"},f.createDataURL=function(t,r){t=t||2,r=void 0===r?4*t:r;var e=f.getModuleCount()*t+2*r,n=r,o=e-r;return I(e,e,function(r,e){if(n<=r&&r<o&&n<=e&&e<o){var i=Math.floor((r-n)/t),a=Math.floor((e-n)/t);return f.isDark(a,i)?0:1}return 1})},f.createImgTag=function(t,r,e){t=t||2,r=void 0===r?4*t:r;var n=f.getModuleCount()*t+2*r,o="";return o+="<img",o+=' src="',o+=f.createDataURL(t,r),o+='"',o+=' width="',o+=n,o+='"',o+=' height="',o+=n,o+='"',e&&(o+=' alt="',o+=y(e),o+='"'),o+="/>"};var y=function(t){for(var r="",e=0;e<t.length;e+=1){var n=t.charAt(e);switch(n){case"<":r+="&lt;";break;case">":r+="&gt;";break;case"&":r+="&amp;";break;case'"':r+="&quot;";break;default:r+=n}}return r};return f.createASCII=function(t,r){if((t=t||1)<2)return function(t){t=void 0===t?2:t;var r,e,n,o,i,a=1*f.getModuleCount()+2*t,u=t,c=a-t,g={"██":"█","█ ":"▀"," █":"▄","  ":" "},l={"██":"▀","█ ":"▀"," █":" ","  ":" "},h="";for(r=0;r<a;r+=2){for(n=Math.floor((r-u)/1),o=Math.floor((r+1-u)/1),e=0;e<a;e+=1)i="█",u<=e&&e<c&&u<=r&&r<c&&f.isDark(n,Math.floor((e-u)/1))&&(i=" "),u<=e&&e<c&&u<=r+1&&r+1<c&&f.isDark(o,Math.floor((e-u)/1))?i+=" ":i+="█",h+=t<1&&r+1>=c?l[i]:g[i];h+="\n"}return a%2&&t>0?h.substring(0,h.length-a-1)+Array(a+1).join("▀"):h.substring(0,h.length-1)}(r);t-=1,r=void 0===r?2*t:r;var e,n,o,i,a=f.getModuleCount()*t+2*r,u=r,c=a-r,g=Array(t+1).join("██"),l=Array(t+1).join("  "),h="",s="";for(e=0;e<a;e+=1){for(o=Math.floor((e-u)/t),s="",n=0;n<a;n+=1)i=1,u<=n&&n<c&&u<=e&&e<c&&f.isDark(o,Math.floor((n-u)/t))&&(i=0),s+=i?g:l;for(o=0;o<t;o+=1)h+=s+"\n"}return h.substring(0,h.length-1)},f.renderTo2dContext=function(t,r){r=r||2;for(var e=f.getModuleCount(),n=0;n<e;n++)for(var o=0;o<e;o++)t.fillStyle=f.isDark(n,o)?"black":"white",t.fillRect(n*r,o*r,r,r)},f};t.stringToBytes=(t.stringToBytesFuncs={default:function(t){for(var r=[],e=0;e<t.length;e+=1){var n=t.charCodeAt(e);r.push(255&n)}return r}}).default,t.createStringToBytes=function(t,r){var e=function(){for(var e=S(t),n=function(){var t=e.read();if(-1==t)throw"eof";return t},o=0,i={};;){var a=e.read();if(-1==a)break;var u=n(),f=n()<<8|n();i[String.fromCharCode(a<<8|u)]=f,o+=1}if(o!=r)throw o+" != "+r;return i}(),n="?".charCodeAt(0);return function(t){for(var r=[],o=0;o<t.length;o+=1){var i=t.charCodeAt(o);if(i<128)r.push(i);else{var a=e[t.charAt(o)];"number"==typeof a?(255&a)==a?r.push(a):(r.push(a>>>8),r.push(255&a)):r.push(n)}}return r}};var r,e,n,o,i,a=1,u=2,f=4,c=8,g={L:1,M:0,Q:3,H:2},l=0,h=1,s=2,v=3,d=4,w=5,p=6,y=7,B=(r=[[],[6,18],[6,22],[6,26],[6,30],[6,34],[6,22,38],[6,24,42],[6,26,46],[6,28,50],[6,30,54],[6,32,58],[6,34,62],[6,26,46,66],[6,26,48,70],[6,26,50,74],[6,30,54,78],[6,30,56,82],[6,30,58,86],[6,34,62,90],[6,28,50,72,94],[6,26,50,74,98],[6,30,54,78,102],[6,28,54,80,106],[6,32,58,84,110],[6,30,58,86,114],[6,34,62,90,118],[6,26,50,74,98,122],[6,30,54,78,102,126],[6,26,52,78,104,130],[6,30,56,82,108,134],[6,34,60,86,112,138],[6,30,58,86,114,142],[6,34,62,90,118,146],[6,30,54,78,102,126,150],[6,24,50,76,102,128,154],[6,28,54,80,106,132,158],[6,32,58,84,110,136,162],[6,26,54,82,110,138,166],[6,30,58,86,114,142,170]],e=1335,n=7973,i=function(t){for(var r=0;0!=t;)r+=1,t>>>=1;return r},(o={}).getBCHTypeInfo=function(t){for(var r=t<<10;i(r)-i(e)>=0;)r^=e<<i(r)-i(e);return 21522^(t<<10|r)},o.getBCHTypeNumber=function(t){for(var r=t<<12;i(r)-i(n)>=0;)r^=n<<i(r)-i(n);return t<<12|r},o.getPatternPosition=function(t){return r[t-1]},o.getMaskFunction=function(t){switch(t){case l:return function(t,r){return(t+r)%2==0};case h:return function(t,r){return t%2==0};case s:return function(t,r){return r%3==0};case v:return function(t,r){return(t+r)%3==0};case d:return function(t,r){return(Math.floor(t/2)+Math.floor(r/3))%2==0};case w:return function(t,r){return t*r%2+t*r%3==0};case p:return function(t,r){return(t*r%2+t*r%3)%2==0};case y:return function(t,r){return(t*r%3+(t+r)%2)%2==0};default:throw"bad maskPattern:"+t}},o.getErrorCorrectPolynomial=function(t){for(var r=k([1],0),e=0;e<t;e+=1)r=r.multiply(k([1,C.gexp(e)],0));return r},o.getLengthInBits=function(t,r){if(1<=r&&r<10)switch(t){case a:return 10;case u:return 9;case f:case c:return 8;default:throw"mode:"+t}else if(r<27)switch(t){case a:return 12;case u:return 11;case f:return 16;case c:return 10;default:throw"mode:"+t}else{if(!(r<41))throw"type:"+r;switch(t){case a:return 14;case u:return 13;case f:return 16;case c:return 12;default:throw"mode:"+t}}},o.getLostPoint=function(t){for(var r=t.getModuleCount(),e=0,n=0;n<r;n+=1)for(var o=0;o<r;o+=1){for(var i=0,a=t.isDark(n,o),u=-1;u<=1;u+=1)if(!(n+u<0||r<=n+u))for(var f=-1;f<=1;f+=1)o+f<0||r<=o+f||0==u&&0==f||a==t.isDark(n+u,o+f)&&(i+=1);i>5&&(e+=3+i-5)}for(n=0;n<r-1;n+=1)for(o=0;o<r-1;o+=1){var c=0;t.isDark(n,o)&&(c+=1),t.isDark(n+1,o)&&(c+=1),t.isDark(n,o+1)&&(c+=1),t.isDark(n+1,o+1)&&(c+=1),0!=c&&4!=c||(e+=3)}for(n=0;n<r;n+=1)for(o=0;o<r-6;o+=1)t.isDark(n,o)&&!t.isDark(n,o+1)&&t.isDark(n,o+2)&&t.isDark(n,o+3)&&t.isDark(n,o+4)&&!t.isDark(n,o+5)&&t.isDark(n,o+6)&&(e+=40);for(o=0;o<r;o+=1)for(n=0;n<r-6;n+=1)t.isDark(n,o)&&!t.isDark(n+1,o)&&t.isDark(n+2,o)&&t.isDark(n+3,o)&&t.isDark(n+4,o)&&!t.isDark(n+5,o)&&t.isDark(n+6,o)&&(e+=40);var g=0;for(o=0;o<r;o+=1)for(n=0;n<r;n+=1)t.isDark(n,o)&&(g+=1);return e+=Math.abs(100*g/r/r-50)/5*10},o),C=function(){for(var t=new Array(256),r=new Array(256),e=0;e<8;e+=1)t[e]=1<<e;for(e=8;e<256;e+=1)t[e]=t[e-4]^t[e-5]^t[e-6]^t[e-8];for(e=0;e<255;e+=1)r[t[e]]=e;var n={glog:function(t){if(t<1)throw"glog("+t+")";return r[t]},gexp:function(r){for(;r<0;)r+=255;for(;r>=256;)r-=255;return t[r]}};return n}();function k(t,r){if(void 0===t.length)throw t.length+"/"+r;var e=function(){for(var e=0;e<t.length&&0==t[e];)e+=1;for(var n=new Array(t.length-e+r),o=0;o<t.length-e;o+=1)n[o]=t[o+e];return n}(),n={getAt:function(t){return e[t]},getLength:function(){return e.length},multiply:function(t){for(var r=new Array(n.getLength()+t.getLength()-1),e=0;e<n.getLength();e+=1)for(var o=0;o<t.getLength();o+=1)r[e+o]^=C.gexp(C.glog(n.getAt(e))+C.glog(t.getAt(o)));return k(r,0)},mod:function(t){if(n.getLength()-t.getLength()<0)return n;for(var r=C.glog(n.getAt(0))-C.glog(t.getAt(0)),e=new Array(n.getLength()),o=0;o<n.getLength();o+=1)e[o]=n.getAt(o);for(o=0;o<t.getLength();o+=1)e[o]^=C.gexp(C.glog(t.getAt(o))+r);return k(e,0).mod(t)}};return n}var A=function(){var t=[[1,26,19],[1,26,16],[1,26,13],[1,26,9],[1,44,34],[1,44,28],[1,44,22],[1,44,16],[1,70,55],[1,70,44],[2,35,17],[2,35,13],[1,100,80],[2,50,32],[2,50,24],[4,25,9],[1,134,108],[2,67,43],[2,33,15,2,34,16],[2,33,11,2,34,12],[2,86,68],[4,43,27],[4,43,19],[4,43,15],[2,98,78],[4,49,31],[2,32,14,4,33,15],[4,39,13,1,40,14],[2,121,97],[2,60,38,2,61,39],[4,40,18,2,41,19],[4,40,14,2,41,15],[2,146,116],[3,58,36,2,59,37],[4,36,16,4,37,17],[4,36,12,4,37,13],[2,86,68,2,87,69],[4,69,43,1,70,44],[6,43,19,2,44,20],[6,43,15,2,44,16],[4,101,81],[1,80,50,4,81,51],[4,50,22,4,51,23],[3,36,12,8,37,13],[2,116,92,2,117,93],[6,58,36,2,59,37],[4,46,20,6,47,21],[7,42,14,4,43,15],[4,133,107],[8,59,37,1,60,38],[8,44,20,4,45,21],[12,33,11,4,34,12],[3,145,115,1,146,116],[4,64,40,5,65,41],[11,36,16,5,37,17],[11,36,12,5,37,13],[5,109,87,1,110,88],[5,65,41,5,66,42],[5,54,24,7,55,25],[11,36,12,7,37,13],[5,122,98,1,123,99],[7,73,45,3,74,46],[15,43,19,2,44,20],[3,45,15,13,46,16],[1,135,107,5,136,108],[10,74,46,1,75,47],[1,50,22,15,51,23],[2,42,14,17,43,15],[5,150,120,1,151,121],[9,69,43,4,70,44],[17,50,22,1,51,23],[2,42,14,19,43,15],[3,141,113,4,142,114],[3,70,44,11,71,45],[17,47,21,4,48,22],[9,39,13,16,40,14],[3,135,107,5,136,108],[3,67,41,13,68,42],[15,54,24,5,55,25],[15,43,15,10,44,16],[4,144,116,4,145,117],[17,68,42],[17,50,22,6,51,23],[19,46,16,6,47,17],[2,139,111,7,140,112],[17,74,46],[7,54,24,16,55,25],[34,37,13],[4,151,121,5,152,122],[4,75,47,14,76,48],[11,54,24,14,55,25],[16,45,15,14,46,16],[6,147,117,4,148,118],[6,73,45,14,74,46],[11,54,24,16,55,25],[30,46,16,2,47,17],[8,132,106,4,133,107],[8,75,47,13,76,48],[7,54,24,22,55,25],[22,45,15,13,46,16],[10,142,114,2,143,115],[19,74,46,4,75,47],[28,50,22,6,51,23],[33,46,16,4,47,17],[8,152,122,4,153,123],[22,73,45,3,74,46],[8,53,23,26,54,24],[12,45,15,28,46,16],[3,147,117,10,148,118],[3,73,45,23,74,46],[4,54,24,31,55,25],[11,45,15,31,46,16],[7,146,116,7,147,117],[21,73,45,7,74,46],[1,53,23,37,54,24],[19,45,15,26,46,16],[5,145,115,10,146,116],[19,75,47,10,76,48],[15,54,24,25,55,25],[23,45,15,25,46,16],[13,145,115,3,146,116],[2,74,46,29,75,47],[42,54,24,1,55,25],[23,45,15,28,46,16],[17,145,115],[10,74,46,23,75,47],[10,54,24,35,55,25],[19,45,15,35,46,16],[17,145,115,1,146,116],[14,74,46,21,75,47],[29,54,24,19,55,25],[11,45,15,46,46,16],[13,145,115,6,146,116],[14,74,46,23,75,47],[44,54,24,7,55,25],[59,46,16,1,47,17],[12,151,121,7,152,122],[12,75,47,26,76,48],[39,54,24,14,55,25],[22,45,15,41,46,16],[6,151,121,14,152,122],[6,75,47,34,76,48],[46,54,24,10,55,25],[2,45,15,64,46,16],[17,152,122,4,153,123],[29,74,46,14,75,47],[49,54,24,10,55,25],[24,45,15,46,46,16],[4,152,122,18,153,123],[13,74,46,32,75,47],[48,54,24,14,55,25],[42,45,15,32,46,16],[20,147,117,4,148,118],[40,75,47,7,76,48],[43,54,24,22,55,25],[10,45,15,67,46,16],[19,148,118,6,149,119],[18,75,47,31,76,48],[34,54,24,34,55,25],[20,45,15,61,46,16]],r=function(t,r){var e={};return e.totalCount=t,e.dataCount=r,e},e={};return e.getRSBlocks=function(e,n){var o=function(r,e){switch(e){case g.L:return t[4*(r-1)+0];case g.M:return t[4*(r-1)+1];case g.Q:return t[4*(r-1)+2];case g.H:return t[4*(r-1)+3];default:return}}(e,n);if(void 0===o)throw"bad rs block @ typeNumber:"+e+"/errorCorrectionLevel:"+n;for(var i=o.length/3,a=[],u=0;u<i;u+=1)for(var f=o[3*u+0],c=o[3*u+1],l=o[3*u+2],h=0;h<f;h+=1)a.push(r(c,l));return a},e}(),b=function(){var t=[],r=0,e={getBuffer:function(){return t},getAt:function(r){var e=Math.floor(r/8);return 1==(t[e]>>>7-r%8&1)},put:function(t,r){for(var n=0;n<r;n+=1)e.putBit(1==(t>>>r-n-1&1))},getLengthInBits:function(){return r},putBit:function(e){var n=Math.floor(r/8);t.length<=n&&t.push(0),e&&(t[n]|=128>>>r%8),r+=1}};return e},M=function(t){var r=a,e=t,n={getMode:function(){return r},getLength:function(t){return e.length},write:function(t){for(var r=e,n=0;n+2<r.length;)t.put(o(r.substring(n,n+3)),10),n+=3;n<r.length&&(r.length-n==1?t.put(o(r.substring(n,n+1)),4):r.length-n==2&&t.put(o(r.substring(n,n+2)),7))}},o=function(t){for(var r=0,e=0;e<t.length;e+=1)r=10*r+i(t.charAt(e));return r},i=function(t){if("0"<=t&&t<="9")return t.charCodeAt(0)-"0".charCodeAt(0);throw"illegal char :"+t};return n},x=function(t){var r=u,e=t,n={getMode:function(){return r},getLength:function(t){return e.length},write:function(t){for(var r=e,n=0;n+1<r.length;)t.put(45*o(r.charAt(n))+o(r.charAt(n+1)),11),n+=2;n<r.length&&t.put(o(r.charAt(n)),6)}},o=function(t){if("0"<=t&&t<="9")return t.charCodeAt(0)-"0".charCodeAt(0);if("A"<=t&&t<="Z")return t.charCodeAt(0)-"A".charCodeAt(0)+10;switch(t){case" ":return 36;case"$":return 37;case"%":return 38;case"*":return 39;case"+":return 40;case"-":return 41;case".":return 42;case"/":return 43;case":":return 44;default:throw"illegal char :"+t}};return n},m=function(r){var e=f,n=t.stringToBytes(r),o={getMode:function(){return e},getLength:function(t){return n.length},write:function(t){for(var r=0;r<n.length;r+=1)t.put(n[r],8)}};return o},L=function(r){var e=c,n=t.stringToBytesFuncs.SJIS;if(!n)throw"sjis not supported.";!function(){var t=n("友");if(2!=t.length||38726!=(t[0]<<8|t[1]))throw"sjis not supported."}();var o=n(r),i={getMode:function(){return e},getLength:function(t){return~~(o.length/2)},write:function(t){for(var r=o,e=0;e+1<r.length;){var n=(255&r[e])<<8|255&r[e+1];if(33088<=n&&n<=40956)n-=33088;else{if(!(57408<=n&&n<=60351))throw"illegal char at "+(e+1)+"/"+n;n-=49472}n=192*(n>>>8&255)+(255&n),t.put(n,13),e+=2}if(e<r.length)throw"illegal char at "+(e+1)}};return i},D=function(){var t=[],r={writeByte:function(r){t.push(255&r)},writeShort:function(t){r.writeByte(t),r.writeByte(t>>>8)},writeBytes:function(t,e,n){e=e||0,n=n||t.length;for(var o=0;o<n;o+=1)r.writeByte(t[o+e])},writeString:function(t){for(var e=0;e<t.length;e+=1)r.writeByte(t.charCodeAt(e))},toByteArray:function(){return t},toString:function(){var r="";r+="[";for(var e=0;e<t.length;e+=1)e>0&&(r+=","),r+=t[e];return r+="]"}};return r},S=function(t){var r=t,e=0,n=0,o=0,i={read:function(){for(;o<8;){if(e>=r.length){if(0==o)return-1;throw"unexpected end of file./"+o}var t=r.charAt(e);if(e+=1,"="==t)return o=0,-1;t.match(/^\s$/)||(n=n<<6|a(t.charCodeAt(0)),o+=6)}var i=n>>>o-8&255;return o-=8,i}},a=function(t){if(65<=t&&t<=90)return t-65;if(97<=t&&t<=122)return t-97+26;if(48<=t&&t<=57)return t-48+52;if(43==t)return 62;if(47==t)return 63;throw"c:"+t};return i},I=function(t,r,e){for(var n=function(t,r){var e=t,n=r,o=new Array(t*r),i={setPixel:function(t,r,n){o[r*e+t]=n},write:function(t){t.writeString("GIF87a"),t.writeShort(e),t.writeShort(n),t.writeByte(128),t.writeByte(0),t.writeByte(0),t.writeByte(0),t.writeByte(0),t.writeByte(0),t.writeByte(255),t.writeByte(255),t.writeByte(255),t.writeString(","),t.writeShort(0),t.writeShort(0),t.writeShort(e),t.writeShort(n),t.writeByte(0);var r=a(2);t.writeByte(2);for(var o=0;r.length-o>255;)t.writeByte(255),t.writeBytes(r,o,255),o+=255;t.writeByte(r.length-o),t.writeBytes(r,o,r.length-o),t.writeByte(0),t.writeString(";")}},a=function(t){for(var r=1<<t,e=1+(1<<t),n=t+1,i=u(),a=0;a<r;a+=1)i.add(String.fromCharCode(a));i.add(String.fromCharCode(r)),i.add(String.fromCharCode(e));var f,c,g,l=D(),h=(f=l,c=0,g=0,{write:function(t,r){if(t>>>r!=0)throw"length over";for(;c+r>=8;)f.writeByte(255&(t<<c|g)),r-=8-c,t>>>=8-c,g=0,c=0;g|=t<<c,c+=r},flush:function(){c>0&&f.writeByte(g)}});h.write(r,n);var s=0,v=String.fromCharCode(o[s]);for(s+=1;s<o.length;){var d=String.fromCharCode(o[s]);s+=1,i.contains(v+d)?v+=d:(h.write(i.indexOf(v),n),i.size()<4095&&(i.size()==1<<n&&(n+=1),i.add(v+d)),v=d)}return h.write(i.indexOf(v),n),h.write(e,n),h.flush(),l.toByteArray()},u=function(){var t={},r=0,e={add:function(n){if(e.contains(n))throw"dup key:"+n;t[n]=r,r+=1},size:function(){return r},indexOf:function(r){return t[r]},contains:function(r){return void 0!==t[r]}};return e};return i}(t,r),o=0;o<r;o+=1)for(var i=0;i<t;i+=1)n.setPixel(i,o,e(i,o));var a=D();n.write(a);for(var u=function(){var t=0,r=0,e=0,n="",o={},i=function(t){n+=String.fromCharCode(a(63&t))},a=function(t){if(t<0);else{if(t<26)return 65+t;if(t<52)return t-26+97;if(t<62)return t-52+48;if(62==t)return 43;if(63==t)return 47}throw"n:"+t};return o.writeByte=function(n){for(t=t<<8|255&n,r+=8,e+=1;r>=6;)i(t>>>r-6),r-=6},o.flush=function(){if(r>0&&(i(t<<6-r),t=0,r=0),e%3!=0)for(var o=3-e%3,a=0;a<o;a+=1)n+="="},o.toString=function(){return n},o}(),f=a.toByteArray(),c=0;c<f.length;c+=1)u.writeByte(f[c]);return u.flush(),"data:image/gif;base64,"+u};return t}();qrcode.stringToBytesFuncs["UTF-8"]=function(t){return function(t){for(var r=[],e=0;e<t.length;e++){var n=t.charCodeAt(e);n<128?r.push(n):n<2048?r.push(192|n>>6,128|63&n):n<55296||n>=57344?r.push(224|n>>12,128|n>>6&63,128|63&n):(e++,n=65536+((1023&n)<<10|1023&t.charCodeAt(e)),r.push(240|n>>18,128|n>>12&63,128|n>>6&63,128|63&n))}return r}(t)},function(t){"function"==typeof define&&define.amd?define([],t):"object"==typeof exports&&(module.exports=t())}(function(){return qrcode});
+</script>
 <script>
 let CELLS = ["A-0-2-1-1", "A-0-3-1-1", "A-0-4-1-1", "A-1-1-1-1", "A-1-2-1-1", "A-1-3-1-1", "A-1-4-1-1", "A-2-1-1-1", "A-2-2-1-1", "A-2-3-1-1", "A-2-4-1-1", "A-3-1-1-1", "A-3-2-1-1", "A-3-3-1-1", "A-3-4-1-1", "A-4-1-1-1", "A-4-2-1-1", "A-4-3-1-1", "A-4-4-1-1", "A-5-1-1-1", "A-5-2-1-1", "A-5-3-1-1", "A-5-4-1-1", "A-6-1-1-1", "A-6-2-1-1", "A-6-3-1-1", "A-6-4-1-1", "B-0-1-1-1", "B-0-2-1-1", "B-0-3-1-1", "B-0-4-1-1", "B-1-1-1-1", "B-1-2-1-1", "B-1-3-1-1", "B-1-4-1-1", "B-2-1-1-1", "B-2-2-1-1", "B-2-3-1-1", "B-2-4-1-1", "B-3-1-1-1", "B-3-2-1-1", "B-3-3-1-1", "B-3-4-1-1", "B-4-1-1-1", "B-4-2-1-1", "B-4-3-1-1", "B-4-4-1-1", "B-5-1-1-1", "B-5-2-1-1", "B-5-3-1-1", "B-5-4-1-1", "B-6-1-1-1", "C-0-1-1-1", "C-0-2-1-1", "C-0-3-1-1", "C-0-4-1-1", "C-1-1-1-1", "C-1-2-1-1", "C-1-3-1-1", "C-1-4-1-1", "C-2-1-1-1", "C-2-2-1-1", "C-2-3-1-1", "C-2-4-1-1", "C-3-1-1-1", "C-3-2-1-1", "C-3-3-1-1", "C-3-4-1-1", "C-4-1-1-1", "C-4-2-1-1", "C-4-3-1-1", "C-4-4-1-1", "C-4-5-1-1", "C-5-1-1-1", "C-5-2-1-1", "C-5-3-1-1", "C-5-4-1-1", "C-6-1-1-1", "C-6-2-1-1", "C-6-3-1-1", "C-6-4-1-1", "DIN-1-1-1-1", "DIN-2-1-1-1", "DIN-3-1-1-1", "D-0-1-1-1", "D-0-2-1-1", "D-0-3-1-1", "D-0-4-1-1", "D-1-1-1-1", "D-1-2-1-1", "D-1-3-1-1", "D-1-4-1-1", "D-2-1-1-1", "D-2-2-1-1", "D-2-3-1-1", "D-2-4-1-1", "D-3-1-1-1", "D-3-2-1-1", "D-3-3-1-1", "D-3-4-1-1", "D-4-1-1-1", "D-4-2-1-1", "D-4-3-1-1", "D-4-4-1-1", "D-5-1-1-1", "D-5-2-1-1", "D-5-3-1-1", "D-5-4-1-1", "D-6-1-1-1", "D-6-2-1-1", "D-6-3-1-1", "D-6-4-1-1", "E-0-1-1-1", "E-0-2-1-1", "E-0-3-1-1", "E-0-4-1-1", "E-1-1-1-1", "E-1-2-1-1", "E-1-3-1-1", "E-1-4-1-1", "E-2-1-1-1", "E-2-2-1-1", "E-2-3-1-1", "E-2-4-1-1", "E-3-1-1-1", "E-3-2-1-1", "E-3-3-1-1", "E-3-4-1-1", "E-4-1-1-1", "E-4-2-1-1", "E-4-3-1-1", "E-4-4-1-1", "E-5-1-1-1", "E-5-2-1-1", "E-5-3-1-1", "E-5-4-1-1", "F-0-1-1-1", "F-0-2-1-1", "F-0-3-1-1", "F-0-4-1-1", "F-1-1-1-1", "F-1-2-1-1", "F-1-3-1-1", "F-1-4-1-1", "F-2-1-1-1", "F-2-2-1-1", "F-2-3-1-1", "F-2-4-1-1", "F-3-1-1-1", "F-3-2-1-1", "F-3-3-1-1", "F-3-4-1-1", "F-4-1-1-1", "F-4-2-1-1", "F-4-3-1-1", "F-4-4-1-1", "F-5-1-1-1", "F-5-2-1-1", "F-5-3-1-1", "F-5-4-1-1", "G-0-1-1-1", "G-0-2-1-1", "G-0-3-1-1", "G-0-4-1-1", "G-1-1-1-1", "G-1-2-1-1", "G-1-3-1-1", "G-1-4-1-1", "G-2-1-1-1", "G-2-2-1-1", "G-2-3-1-1", "G-2-4-1-1", "G-3-1-1-1", "G-3-2-1-1", "G-3-3-1-1", "G-3-4-1-1", "G-4-1-1-1", "G-4-2-1-1", "G-4-3-1-1", "G-4-4-1-1", "G-5-1-1-1", "G-5-2-1-1", "G-5-3-1-1", "G-5-4-1-1", "G-6-1-1-1", "G-6-2-1-1", "G-6-3-1-1", "G-6-4-1-1", "H-0-1-1-1", "H-0-2-1-1", "H-0-3-1-1", "H-0-4-1-1", "H-1-1-1-1", "H-1-2-1-1", "H-1-3-1-1", "H-1-4-1-1", "H-2-1-1-1", "H-2-2-1-1", "H-2-3-1-1", "H-2-4-1-1", "H-3-1-1-1", "H-3-2-1-1", "H-3-3-1-1", "H-3-4-1-1", "H-4-1-1-1", "H-4-2-1-1", "H-4-3-1-1", "H-4-4-1-1", "H-5-1-1-1", "H-5-2-1-1", "H-5-3-1-1", "H-5-4-1-1", "H-6-1-1-1", "H-6-2-1-1", "H-6-3-1-1", "H-6-4-1-1", "I-0-1-1-1", "I-0-2-1-1", "I-0-3-1-1", "I-0-4-1-1", "I-1-1-1-1", "I-1-2-1-1", "I-1-3-1-1", "I-1-4-1-1", "I-2-1-1-1", "I-2-2-1-1", "I-2-3-1-1", "I-2-4-1-1", "I-3-1-1-1", "I-3-2-1-1", "I-3-3-1-1", "I-3-4-1-1", "I-4-1-1-1", "I-4-2-1-1", "I-4-3-1-1", "I-4-4-1-1", "I-5-1-1-1", "I-5-2-1-1", "I-5-3-1-1", "I-5-4-1-1", "I-6-1-1-1", "I-6-2-1-1", "I-6-3-1-1", "I-6-4-1-1", "J-0-1-1-1", "J-0-2-1-1", "J-0-3-1-1", "J-0-4-1-1", "J-1-1-1-1", "J-1-2-1-1", "J-1-3-1-1", "J-1-4-1-1", "J-2-1-1-1", "J-2-2-1-1", "J-2-3-1-1", "J-2-4-1-1", "J-3-1-1-1", "J-3-2-1-1", "J-3-3-1-1", "J-3-4-1-1", "J-4-1-1-1", "J-4-2-1-1", "J-4-3-1-1", "J-4-4-1-1", "J-5-1-1-1", "J-5-2-1-1", "J-5-3-1-1", "J-5-4-1-1", "J-6-1-1-1", "J-6-2-1-1", "J-6-3-1-1", "J-6-4-1-1", "KBT-1-1-1-1", "KBT-2-1-1-1", "KBT-3-1-1-1", "KBT-4-1-1-1", "KBT-5-1-1-1", "KBT-6-1-1-1", "K-1-1-1-1", "K-1-2-1-1", "K-1-3-1-1", "K-1-4-1-1", "K-2-1-1-1", "K-2-2-1-1", "K-2-3-1-1", "K-2-4-1-1", "K-3-1-1-1", "K-3-2-1-1", "K-3-3-1-1", "K-3-4-1-1", "K-4-1-1-1", "K-4-2-1-1", "K-4-3-1-1", "K-4-4-1-1", "K-5-1-1-1", "K-5-2-1-1", "K-5-3-1-1", "K-5-4-1-1", "L-1-1-1-1", "L-1-2-1-1", "L-1-3-1-1", "L-1-4-1-1", "L-2-1-1-1", "L-2-2-1-1", "L-2-3-1-1", "L-2-4-1-1", "L-3-1-1-1", "L-3-2-1-1", "L-4-1-1-1", "L-4-2-1-1", "L-4-3-1-1", "L-4-4-1-1", "L-4-5-1-1", "L-5-1-1-1", "L-5-2-1-1", "L-5-3-1-1", "L-5-4-1-1", "L-6-1-1-1", "L-6-2-1-1", "L-6-3-1-1", "L-6-4-1-1", "L-7-1-1-1", "L-7-2-1-1", "L-7-3-1-1", "L-7-4-1-1", "M-1-1-1-1", "M-1-2-1-1", "M-1-3-1-1", "M-1-4-1-1", "M-2-1-1-1", "M-2-2-1-1", "M-2-3-1-1", "M-2-4-1-1", "M-3-1-1-1", "M-3-2-1-1", "M-3-3-1-1", "M-3-4-1-1", "M-4-1-1-1", "M-4-2-1-1", "M-4-3-1-1", "M-4-4-1-1", "M-5-1-1-1", "M-5-2-1-1", "M-5-3-1-1", "M-5-4-1-1", "M-6-1-1-1", "M-6-2-1-1", "M-6-3-1-1", "M-6-4-1-1", "M-7-1-1-1", "M-7-2-1-1", "M-7-3-1-1", "M-7-4-1-1", "N-1-1-1-1", "N-1-2-1-1", "N-1-3-1-1", "N-1-4-1-1", "N-2-1-1-1", "N-2-2-1-1", "N-2-3-1-1", "N-3-1-1-1", "N-3-2-1-1", "N-3-3-1-1", "N-3-4-1-1", "N-4-1-1-1", "N-4-2-1-1", "N-4-3-1-1", "N-4-4-1-1", "N-5-1-1-1", "N-5-2-1-1", "N-5-3-1-1", "N-5-4-1-1", "N-6-1-1-1", "N-6-2-1-1", "N-6-3-1-1", "N-7-1-1-1", "N-7-2-1-1", "N-7-3-1-1", "N-7-4-1-1", "O-1-1-1-1", "O-1-2-1-1", "O-1-3-1-1", "O-1-4-1-1", "O-2-1-1-1", "O-2-2-1-1", "O-2-3-1-1", "O-3-1-1-1", "O-3-2-1-1", "O-3-3-1-1", "O-3-4-1-1", "O-4-1-1-1", "O-4-2-1-1", "O-4-3-1-1", "O-4-4-1-1", "O-5-1-1-1", "O-5-2-1-1", "O-5-3-1-1", "O-6-1-1-1", "O-6-2-1-1", "O-7-1-1-1", "O-7-2-1-1", "PH-1-1-1-1", "PH-1-2-1-1", "PH-1-3-1-1", "PH-1-4-1-1", "PH-1-5-1-1", "PH-1-6-1-1", "PH-1-7-1-1", "PH-2-1-1-1", "PH-2-2-1-1", "PH-2-3-1-1", "PH-2-4-1-1", "PH-2-5-1-1", "PH-2-6-1-1", "PH-2-7-1-1", "PH-2-8-1-1", "PH-3-1-1-1", "PH-3-2-1-1", "PH-3-3-1-1", "PH-3-4-1-1", "PH-3-5-1-1", "PH-3-6-1-1", "PH-3-7-1-1", "P-1-1-1-1", "P-1-2-1-1", "P-1-3-1-1", "P-1-4-1-1", "P-2-1-1-1", "P-2-2-1-1", "P-2-3-1-1", "P-2-4-1-1", "P-3-1-1-1", "P-3-2-1-1", "P-3-3-1-1", "P-3-4-1-1", "P-4-1-1-1", "P-4-2-1-1", "P-4-3-1-1", "P-4-4-1-1", "P-5-1-1-1", "P-5-2-1-1", "P-5-3-1-1", "P-5-4-1-1", "P-6-1-1-1", "P-6-2-1-1", "P-6-3-1-1", "P-6-4-1-1", "Q-1-1-1-1", "Q-1-2-1-1", "Q-1-3-1-1", "Q-1-4-1-1", "Q-2-1-1-1", "Q-2-2-1-1", "Q-2-3-1-1", "Q-2-4-1-1", "Q-3-1-1-1", "Q-3-2-1-1", "Q-3-3-1-1", "Q-3-4-1-1", "Q-4-1-1-1", "Q-4-2-1-1", "Q-4-3-1-1", "Q-4-4-1-1", "Q-5-1-1-1", "Q-5-2-1-1", "Q-5-3-1-1", "Q-5-4-1-1", "Q-6-1-1-1", "Q-6-2-1-1", "Q-6-3-1-1", "Q-6-4-1-1", "R-1-1-1-1", "R-1-2-1-1", "R-1-3-1-1", "R-1-4-1-1", "R-2-1-1-1", "R-2-2-1-1", "R-2-3-1-1", "R-2-4-1-1", "R-3-1-1-1", "R-3-2-1-1", "R-3-3-1-1", "R-3-4-1-1", "R-4-1-1-1", "R-4-2-1-1", "R-4-3-1-1", "R-4-4-1-1", "R-5-1-1-1", "R-5-2-1-1", "R-5-3-1-1", "R-5-4-1-1", "R-6-1-1-1", "R-6-2-1-1", "R-6-3-1-1", "R-6-4-1-1", "R-7-1-1-1", "R-7-2-1-1", "R-7-3-1-1", "R-7-4-1-1", "S-1-1-1-1", "S-1-2-1-1", "S-1-3-1-1", "S-1-4-1-1", "S-2-1-1-1", "S-2-2-1-1", "S-2-3-1-1", "S-2-4-1-1", "S-3-1-1-1", "S-3-2-1-1", "S-3-3-1-1", "S-3-4-1-1", "S-4-1-1-1", "S-4-2-1-1", "S-4-3-1-1", "S-4-4-1-1", "S-5-1-1-1", "S-5-2-1-1", "S-5-3-1-1", "S-5-4-1-1", "S-6-1-1-1", "S-6-2-1-1", "S-6-3-1-1", "S-6-4-1-1", "S-7-1-1-1", "S-7-2-1-1", "S-7-3-1-1", "S-7-4-1-1", "TV-1-1-1-1", "TV-1-2-1-1", "TV-1-3-1-1", "TV-1-4-1-1", "TV-2-1-1-1", "TV-2-2-1-1", "TV-2-3-1-1", "TV-2-4-1-1", "TV-3-1-1-1", "TV-3-2-1-1", "TV-3-3-1-1", "TV-4-1-1-1", "TV-4-2-1-1", "TV-4-3-1-1", "TV-5-1-1-1", "TV-5-2-1-1", "TV-6-1-1-1", "TV-6-2-1-1", "TV-7-1-1-1", "TV-7-2-1-1", "TV-7-3-1-1", "TV-8-1-1-1", "TV-8-2-1-1", "TV-8-3-1-1", "TV-8-4-1-1", "TZ-1-1-1-2", "TZ-1-1-1-3", "T-1-1-1-1", "T-1-2-1-1", "T-1-3-1-1", "T-1-4-1-1", "T-2-1-1-1", "T-2-2-1-1", "T-2-3-1-1", "T-2-4-1-1", "T-3-1-1-1", "T-3-2-1-1", "T-3-3-1-1", "T-3-4-1-1", "T-4-1-1-1", "T-4-2-1-1", "T-4-3-1-1", "T-4-4-1-1", "T-5-1-1-1", "T-5-2-1-1", "T-5-3-1-1", "T-5-4-1-1", "T-5-5-1-1", "T-6-1-1-1", "T-6-2-1-1", "T-6-3-1-1", "T-6-4-1-1", "T-7-1-1-1", "T-7-2-1-1", "T-7-3-1-1", "T-7-4-1-1", "U-1-1-1-1", "U-1-2-1-1", "U-1-3-1-1", "U-1-4-1-1", "U-2-1-1-1", "U-2-2-1-1", "U-2-3-1-1", "U-2-4-1-1", "U-3-1-1-1", "U-3-2-1-1", "U-3-3-1-1", "U-3-4-1-1", "U-4-1-1-1", "U-4-2-1-1", "U-4-3-1-1", "U-4-4-1-1", "U-5-1-1-1", "U-5-2-1-1", "U-5-3-1-1", "U-5-4-1-1", "U-6-1-1-1", "U-6-2-1-1", "U-6-3-1-1", "U-6-4-1-1", "U-7-1-1-1", "U-7-2-1-1", "U-7-3-1-1", "U-7-4-1-1", "VD-1-1-1-1", "VD-1-2-1-1", "VD-1-3-1-1", "VD-1-4-1-1", "VD-1-5-1-1", "VD-1-6-1-1", "VD-1-7-1-1", "VD-1-8-1-1", "VD-1-9-1-1", "VD-1-10-1-1", "VD-1-11-1-1", "VD-1-12-1-1", "VD-2-1-1-1", "VD-2-2-1-1", "VD-2-3-1-1", "VD-2-4-1-1", "VD-2-5-1-1", "VD-2-6-1-1", "VD-2-7-1-1", "VD-2-8-1-1", "VD-2-9-1-1", "VD-2-10-1-1", "VD-2-11-1-1", "VD-2-12-1-1", "VD-2-13-1-1", "VD-2-14-1-1", "VD-2-15-1-1", "VD-2-16-1-1", "VD-2-17-1-1", "VD-2-18-1-1", "VD-3-1-1-1", "VD-3-2-1-1", "VD-3-3-1-1", "VD-3-4-1-1", "VD-3-5-1-1", "VD-3-6-1-1", "VD-3-7-1-1", "VD-3-8-1-1", "VD-3-9-1-1", "VD-3-10-1-1", "VD-3-11-1-1", "VD-3-12-1-1", "VD-4-1-1-1", "VD-4-2-1-1", "VD-4-3-1-1", "VD-4-4-1-1", "VD-4-5-1-1", "VD-4-6-1-1", "VD-4-7-1-1", "VD-4-8-1-1", "VD-4-9-1-1", "VD-4-10-1-1", "VD-4-11-1-1", "VD-4-12-1-1", "VD-4-13-1-1", "VD-4-14-1-1", "VD-4-15-1-1", "VD-4-16-1-1", "VD-4-17-1-1", "VD-4-18-1-1", "VD-5-1-1-1", "VD-5-2-1-1", "VD-5-3-1-1", "VD-5-4-1-1", "VD-5-5-1-1", "VD-5-6-1-1", "VD-6-1-1-1", "VD-6-2-1-1", "VD-6-3-1-1", "VD-6-4-1-1", "VD-6-5-1-1", "VD-6-6-1-1", "V-1-1-1-1", "V-1-2-1-1", "V-2-1-1-1", "V-2-2-1-1", "V-3-1-1-1", "V-3-2-1-1", "V-4-1-1-1", "V-4-2-1-1", "V-5-1-1-1", "V-5-2-1-1", "W-1-1-1-1", "W-1-2-1-1", "W-1-3-1-1", "W-2-1-1-1", "W-2-2-1-1", "W-2-3-1-1", "W-2-4-1-1", "W-3-1-1-1", "W-3-2-1-1", "W-3-3-1-1", "W-4-1-1-1", "W-4-2-1-1", "W-5-1-1-1", "W-5-2-1-1", "W-5-3-1-1", "W-6-1-1-1", "W-6-2-1-1", "W-6-3-1-1", "W-7-1-1-1", "W-7-2-1-1", "W-7-3-1-1", "W-8-1-1-1", "W-8-2-1-1", "W-8-3-1-1", "W-9-1-1-1", "W-9-2-1-1", "W-10-1-1-1", "W-10-2-1-1", "W-10-3-1-1", "W-11-1-1-1", "W-11-2-1-1", "X-1-1-1-1", "X-1-2-1-1", "X-1-3-1-1", "X-1-4-1-1", "X-2-1-1-1", "X-2-2-1-1", "X-2-3-1-1", "X-2-4-1-1", "X-3-1-1-1", "X-3-2-1-1", "X-3-3-1-1", "X-3-4-1-1", "X-4-1-1-1", "X-4-2-1-1", "X-4-3-1-1", "X-A-1-1-1-1", "X-A-1-2-1-1", "X-A-1-3-1-1", "X-A-1-4-1-1", "X-A-2-1-1-1", "X-A-2-2-1-1", "X-A-2-3-1-1", "X-A-2-4-1-1", "X-A-3-1-1-1", "X-A-3-2-1-1", "X-A-3-3-1-1", "X-A-3-4-1-1", "X-A-4-1-1-1", "X-A-4-2-1-1", "X-A-4-3-1-1", "X-A-4-4-1-1", "X-A-5-1-1-1", "X-A-5-2-1-1", "X-A-5-3-1-1", "X-A-5-4-1-1", "X-A-6-1-1-1", "X-A-6-2-1-1", "X-A-6-3-1-1", "X-A-6-4-1-1", "X-A-7-1-1-1", "X-A-7-2-1-1", "X-A-7-3-1-1", "X-A-7-4-1-1", "X-A-8-1-1-1", "X-A-8-2-1-1", "X-A-8-3-1-1", "X-A-8-4-1-1", "X-A-9-1-1-1", "X-A-9-2-1-1", "X-A-9-3-1-1", "X-A-9-4-1-1", "X-A-10-1-1-1", "X-A-10-1-2-1", "X-A-10-1-3-1", "X-A-10-1-4-1", "X-A-10-2-2-1", "X-A-11-1-1-1", "X-A-11-1-2-1", "X-A-11-1-3-1", "X-A-11-1-4-1", "X-A-12-1-1-1", "X-A-12-2-1-1", "X-A-12-3-1-1", "X-A-12-4-1-1", "X-A-13-1-1-1", "X-A-13-2-1-1", "X-A-13-3-1-1", "X-A-13-4-1-1", "X-A-14-1-1-1", "X-A-14-2-1-1", "X-A-14-3-1-1", "X-A-14-4-1-1", "X-A-15-1-1-1", "X-A-15-2-1-1", "X-A-15-3-1-1", "X-A-15-4-1-1", "X-A-16-1-1-1", "X-A-16-2-1-1", "X-A-16-3-1-1", "X-A-16-4-1-1", "X-A-17-1-1-1", "X-A-17-2-1-1", "X-A-17-3-1-1", "X-A-17-4-1-1", "X-A-18-1-1-1", "X-A-18-2-1-1", "X-A-18-3-1-1", "X-A-18-4-1-1", "X-A-19-1-1-1", "X-A-19-2-1-1", "X-A-19-3-1-1", "X-A-19-4-1-1", "X-A-20-1-1-1", "X-A-20-2-1-1", "X-A-20-3-1-1", "X-A-20-4-1-1", "k-0-1-1-1", "k-0-2-1-1", "k-0-3-1-1", "k-0-4-1-1", "ВП-1-1-1-3&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;", "МХБ-1-1-1-1", "МХБ-1-2-1-1", "МХБ-1-3-1-1", "МХБ-1-4-1-1", "МХБ-2-1-1-1", "МХБ-2-2-1-1", "МХБ-2-3-1-1", "МХБ-2-4-1-1", "МХБ-3-1-1-1", "МХБ-3-2-1-1", "МХБ-3-3-1-1", "МХБ-3-4-1-1", "МХБ-4-1-1-1", "МХБ-4-2-1-1", "МХБ-4-3-1-1", "МХБ-4-4-1-1", "РЯ-1-1-1-1", "РЯ-1-2-1-1", "РЯ-1-3-1-1", "РЯ-1-4-1-1", "РЯ-1-5-1-1", "РЯ-1-6-1-1", "РЯ-1-7-1-1"];
 
@@ -1142,6 +1163,7 @@ const DEFAULT_EMPLOYEES = ['Бобур', 'Джавохир', 'Руслан', 'Т
 const EMPLOYEES_CACHE_KEY = 'wt_employees_cache';
 let EMPLOYEES = DEFAULT_EMPLOYEES.slice();
 let appSettings = {};          // настройки с сервера (лист Settings)
+let cellsReady = null;
 let telegramEnabled = false;   // подключены ли уведомления (сам токен страница не получает)
 try {
   const cached = JSON.parse(localStorage.getItem(EMPLOYEES_CACHE_KEY) || 'null');
@@ -1210,7 +1232,7 @@ async function fetchConfig(){
   renderHistoryEmployeeFilter();
   rebuildVitrinaItems();
   render();
-  loadCellsIfNeeded();
+  cellsReady = loadCellsIfNeeded();
 }
 
 let state = {
@@ -1258,6 +1280,7 @@ function rowsToState(rows){
         destCell: r.DestCell,
         status: r.Status,
         completedAt: r.CompletedAt || null,
+        completedBy: r.CompletedBy || '',
         employee: r.Employee || '',
         articles: []
       });
@@ -1564,7 +1587,21 @@ function initCellsList(){
 // количество в прогнозе — сигнал для проверки, а не гарантированная ошибка.
 function normCode(c){ return String(c == null ? '' : c).trim().replace(/^0+(?=\d)/, ''); }
 
+function fillOstatkiNames(){
+  // у строк, где название потерялось при записи в таблицу, берём название из выгрузки витрины
+  if(!state.ostatki || !ostatkiNoName) return;
+  const nm = {};
+  vitrinaItems.forEach(v => { nm[normCode(v.code)] = v.name; });
+  Object.keys(state.ostatki).forEach(c => state.ostatki[c].forEach(it => {
+    if(it.noName || !it.name) it.name = nm[normCode(it.article)] || '(название не сохранилось)';
+  }));
+}
+function dataWarnHtml(){
+  if(!ostatkiNoName) return '';
+  return `<div class="data-warn">⚠ В листе «ostatki» у <b>${ostatkiNoName}</b> строк пропали название, ед. изм., счёт и статус — выгрузка записалась в таблицу с потерями. Ячейки и количество учтены, названия подставлены из «vitrina», но статус («Поврежден» и т.п.) для них неизвестен. Загрузите остатки заново: Админка → Данные.</div>`;
+}
 function computeProjectedInventory(){
+  fillOstatkiNames();
   // qty — всё количество артикула в ячейке; saleQty — только статус «Для продажи» (его можно выставлять).
   // Если один артикул встречается в ячейке несколькими строками (разные счета/статусы), они СУММИРУЮТСЯ,
   // а не затирают друг друга.
@@ -1880,7 +1917,7 @@ function renderHistory(){
             <td data-label="Маршрут"><button type="button" class="cell-tag" data-qr-cell="${escapeAttr(t.sourceCell)}">${escapeHtml(t.sourceCell)}</button><span class="arrow-inline">→</span><button type="button" class="cell-tag" data-qr-cell="${escapeAttr(t.destCell)}">${escapeHtml(t.destCell)}</button></td>
             <td data-label="Товары">${t.articles.map(a=>`<span class="sku">${escapeHtml(a.article)}</span><b class="qty-x">×${a.qty}</b>${names[a.article] ? escapeHtml(names[a.article].slice(0,50)) : ''}`).join('<br>')}${isDisplayDest(t.destCell) ? '<span class="badge-display">🛒 на витрину</span>' : ''}</td>
             <td data-label="Статус"><span class="status-pill ${statusClass}">${statusLabel}</span></td>
-            <td data-label="Завершено">${fmtDate(t.completedAt)}</td>
+            <td data-label="Завершено">${fmtDate(t.completedAt)}${doneByHtml(t)}</td>
             <td>
               ${t.status==='pending'
                 ? `<button class="btn btn-done btn-small" data-complete="${t.id}">Завершить</button>
@@ -1913,6 +1950,8 @@ document.getElementById('historySearch').addEventListener('input', debounce(rend
 //   среди них строки, где в колонке 0 есть дефис (например "A-0-1-1-1") — код ячейки
 // - строки с названием в колонке 3 — это товарные позиции этой ячейки;
 //   реальное количество лежит в ПОСЛЕДНЕЙ колонке строки (индекс 8 в проверенных данных)
+let lastParseNoName = 0;
+let ostatkiNoName = 0;
 function parseOstatkiRows(rows){
   // Колонки ищем по заголовкам выгрузки 1С ("Товар", "Ед. изм.", "Счет", "Статус",
   // "Кол-во всего"). Если заголовков нет (старый формат листа) — прежняя схема:
@@ -1935,31 +1974,43 @@ function parseOstatkiRows(rows){
   // Структура выгрузки: Секция -> Линия -> Ячейка -> товары. Ячейкой считаем ПОСЛЕДНЮЮ строку-заголовок
   // перед товарами — даже если в её названии нет дефиса («Куча», «Золотая ячейка», «Отгрузка»,
   // «Излишек»). Раньше такие товары ошибочно приписывались предыдущей ячейке с дефисом.
+  // Строка без названия, но с кодом-артикулом (5+ цифр) и количеством — это ТОВАР с потерянным
+  // названием, а не ячейка: иначе артикул становился «ячейкой», а все следующие товары уходили в неё.
   let currentCell = null;
   let lastHeader = null;
   let needNewCell = true;
+  let noName = 0;
+  const pushItem = (row, article, nm, noN) => {
+    if (needNewCell) { currentCell = lastHeader; needNewCell = false; }
+    if (!currentCell) return; // товар до первого заголовка — пропускаем
+    const qty = Number(col.qty >= 0 ? row[col.qty] : row[row.length - 1]);
+    if (!byCell[currentCell]) byCell[currentCell] = [];
+    if (noN) noName++;
+    byCell[currentCell].push({
+      article: article,
+      name: nm,
+      noName: !!noN,
+      unit: col.unit >= 0 ? (row[col.unit] || '') : '',
+      qty: Number.isFinite(qty) ? qty : null,
+      status: col.status >= 0 ? String(row[col.status] || '').trim() : '',
+      account: col.acct >= 0 ? String(row[col.acct] || '').trim() : ''
+    });
+  };
   for(let i = start; i < rows.length; i++){
     const row = rows[i];
     const first = row[0];
     const name = row[col.name];
+    const firstStr = String(first == null ? '' : first).trim();
     if (name && String(name).trim() !== '') {
-      if (needNewCell) { currentCell = lastHeader; needNewCell = false; }
-      if (!currentCell) continue; // товар до первого заголовка — пропускаем
-      const qty = Number(col.qty >= 0 ? row[col.qty] : row[row.length - 1]);
-      if (!byCell[currentCell]) byCell[currentCell] = [];
-      byCell[currentCell].push({
-        article: String(first).trim(),
-        name: String(name),
-        unit: col.unit >= 0 ? (row[col.unit] || '') : '',
-        qty: Number.isFinite(qty) ? qty : null,
-        status: col.status >= 0 ? String(row[col.status] || '').trim() : '',
-        account: col.acct >= 0 ? String(row[col.acct] || '').trim() : ''
-      });
-    } else {
-      const firstStr = String(first == null ? '' : first).trim();
-      if (firstStr) { lastHeader = firstStr; needNewCell = true; }
+      pushItem(row, firstStr, String(name), false);
+    } else if (firstStr) {
+      const qv = col.qty >= 0 ? row[col.qty] : NaN;
+      const isArticle = /^\d{5,}$/.test(firstStr) && qv !== '' && qv != null && Number.isFinite(Number(qv)) && Number(qv) > 0;
+      if (isArticle && (lastHeader || currentCell)) pushItem(row, firstStr, '', true);
+      else { lastHeader = firstStr; needNewCell = true; }
     }
   }
+  lastParseNoName = noName;
   return byCell;
 }
 
@@ -1972,6 +2023,7 @@ async function fetchOstatki(){
     const payload = await res.json();
     if (payload && payload.error) throw new Error(payload.error);
     state.ostatki = parseOstatkiRows(payload.rows || []);
+    ostatkiNoName = lastParseNoName;
     ostatkiLoadError = null;
   } catch(e) {
     ostatkiLoadError = e.message || 'неизвестная ошибка';
@@ -1982,6 +2034,7 @@ async function fetchOstatki(){
 }
 
 function renderInventory(){
+  fillOstatkiNames();
   const wrap = document.getElementById('inventoryWrap');
   const q = (document.getElementById('invSearch').value || '').toLowerCase().trim();
   const onlyDiscrepancies = document.getElementById('showDiscrepanciesOnly').checked;
@@ -2044,7 +2097,7 @@ function renderInventory(){
   let totalQty = 0;
   cells.forEach(c => byCellFiltered[c].forEach(item => { if (Number.isFinite(item.qty)) totalQty += item.qty; }));
 
-  wrap.innerHTML = `
+  wrap.innerHTML = dataWarnHtml() + `
     <div class="inv-cell-card" style="border-color:var(--orange);margin-bottom:14px;">
       <div class="cell-name" style="color:var(--orange-soft);">Итого товаров${q || onlyDiscrepancies ? ' (по результатам фильтра)' : ' по складу'}</div>
       <div class="articles" style="font-size:16px;font-weight:700;color:var(--text);">${totalQty} шт.</div>
@@ -2053,7 +2106,7 @@ function renderInventory(){
     const items = byCellFiltered[c];
     return `
     <div class="inv-cell-card">
-      <div class="cell-name">${escapeHtml(c)}</div>
+      <div class="cell-name" data-qr-cell="${escapeAttr(c)}" title="Показать QR ячейки">${escapeHtml(c)}</div>
       <div class="articles">${items.map(item => {
         const base = `<span class="sku">${escapeHtml(item.article)}</span><b class="qty-x">×${item.qty !== null ? item.qty : '?'}</b>${escapeHtml(item.name)}`;
         if (onlyDiscrepancies) {
@@ -2063,6 +2116,7 @@ function renderInventory(){
       }).join('<br>')}</div>
     </div>`;
   }).join('');
+  wrap.querySelectorAll('[data-qr-cell]').forEach(b => b.addEventListener('click', () => openQrModal(b.dataset.qrCell)));
 }
 document.getElementById('invSearch').addEventListener('input', debounce(renderInventory, 200));
 document.getElementById('showDiscrepanciesOnly').addEventListener('change', renderInventory);
@@ -2368,6 +2422,9 @@ function renderDisplaySummary(all, calc, tiles){
 function renderDisplay(){
   const wrap = document.getElementById('displayListWrap');
   if(!wrap) return;
+  fillOstatkiNames();
+  const dw = document.getElementById('dataWarn');
+  if(dw) dw.innerHTML = dataWarnHtml();
   const summary = document.getElementById('displaySummary');
 
   if(vitrinaLoadError){
@@ -2473,7 +2530,7 @@ function renderDisplay(){
     } else {
       html += `<div class="disp-cells">${it.cells.map(c => {
         const line = lines.find(l => l.cell === c.cell);
-        return `<button type="button" class="disp-cell-btn ${line ? 'selected' : ''}" data-disp-toggle="${escapeAttr(it.code)}" data-cell="${escapeAttr(c.cell)}">${line ? '✓ ' : '☐ '}${escapeHtml(c.cell)}<b>×${c.qty}</b>${line ? `<span style="margin-left:6px;">→ ${line.qty}</span>` : ''}</button>`;
+        return `<span class="disp-cell-grp"><button type="button" class="disp-cell-btn ${line ? 'selected' : ''}" data-disp-toggle="${escapeAttr(it.code)}" data-cell="${escapeAttr(c.cell)}">${line ? '✓ ' : '☐ '}${escapeHtml(c.cell)}<b>×${c.qty}</b>${line ? `<span style="margin-left:6px;">→ ${line.qty}</span>` : ''}</button><button type="button" class="disp-qr-btn" data-qr-cell="${escapeAttr(c.cell)}" title="Показать QR ячейки ${escapeAttr(c.cell)}" aria-label="QR ячейки ${escapeAttr(c.cell)}">QR</button></span>`;
       }).join('')}</div>`;
     }
     html += '</div>';
@@ -2486,6 +2543,7 @@ function renderDisplay(){
   document.querySelectorAll('[data-disp-cat]').forEach(b => b.addEventListener('click', () => {
     displayCategory = b.dataset.dispCat; displayLimit = 50; renderDisplay();
   }));
+  wrap.querySelectorAll('[data-qr-cell]').forEach(b => b.addEventListener('click', () => openQrModal(b.dataset.qrCell)));
   wrap.querySelectorAll('[data-disp-toggle]').forEach(b => b.addEventListener('click', () => toggleCartCell(b.dataset.dispToggle, b.dataset.cell)));
   const more = document.getElementById('dispMoreBtn');
   if(more) more.addEventListener('click', () => { displayLimit += 50; renderDisplay(); });
@@ -2762,7 +2820,7 @@ function renderAdminOverview(body){
     </div>
     <div class="card">
       <h2>Данные из таблицы</h2>
-      <div class="adm-row"><div class="adm-main">Лист «ostatki»<div class="adm-sub">${ostatkiLoadError ? 'ОШИБКА: ' + escapeHtml(ostatkiLoadError) : `${ostCells} ячеек, ${ostItems} позиций`}<br>загружено: ${escapeHtml(fmtUploaded('ostatki'))}</div></div></div>
+      <div class="adm-row"><div class="adm-main">Лист «ostatki»<div class="adm-sub">${ostatkiLoadError ? 'ОШИБКА: ' + escapeHtml(ostatkiLoadError) : `${ostCells} ячеек, ${ostItems} позиций`}${ostatkiNoName ? `<br><span style="color:var(--red);">⚠ у ${ostatkiNoName} строк пропали название и статус (запись в таблицу с потерями) — загрузите остатки заново</span>` : ''}<br>загружено: ${escapeHtml(fmtUploaded('ostatki'))}</div></div></div>
       <div class="adm-row"><div class="adm-main">Лист «vitrina»<div class="adm-sub">${vitrinaLoadError ? 'ОШИБКА: ' + escapeHtml(vitrinaLoadError) : (vitrinaLoaded ? `${vitrinaItems.length} товаров, не на витрине: ${vitNeed} позиций` : 'ещё не загружен')}<br>загружено: ${escapeHtml(fmtUploaded('vitrina'))}</div></div></div>
       <div class="adm-row"><div class="adm-main">Ячейки и QR<div class="adm-sub">${CELLS.length} ячеек (${escapeHtml(cellsSource)})<br>загружено: ${escapeHtml(fmtUploaded('cells'))}</div></div></div>
       <div class="adm-row"><div class="adm-main">Ячейка витрины<div class="adm-sub">${escapeHtml(DISPLAY_CELL)}</div></div></div>
@@ -2856,7 +2914,7 @@ function renderAdminTransfers(body){
             <span class="status-pill ${t.status === 'done' ? 'status-done' : 'status-pending'}">${t.status === 'done' ? 'Завершено' : 'В процессе'}</span>
             <b style="margin-left:6px;">${escapeHtml(t.sourceCell)} → ${escapeHtml(t.destCell)}</b>
             <div class="adm-sub">${t.articles.map(a => `<span class="sku">${escapeHtml(a.article)}</span><b class="qty-x">×${a.qty}</b>${nameOf(a.article) ? escapeHtml(nameOf(a.article).slice(0,40)) : ''}`).join('<br>')}</div>
-            <div class="adm-sub">${escapeHtml(t.employee || '—')} · создано ${fmtDate(t.createdAt)}${t.completedAt ? ' · завершено ' + fmtDate(t.completedAt) : ''}</div>
+            <div class="adm-sub">${escapeHtml(t.employee || '—')} · создано ${fmtDate(t.createdAt)}${t.completedAt ? ' · завершено ' + fmtDate(t.completedAt) : ''}${t.completedBy && t.completedBy !== '__app__' ? ' · выполнил ' + escapeHtml(t.completedBy) : ''}</div>
           </div>
           <div class="adm-actions">
             ${t.status === 'pending'
@@ -2872,10 +2930,10 @@ function renderAdminTransfers(body){
   document.getElementById('admTrExport').addEventListener('click', async () => {
     try{
       await loadXlsx();
-      const rows = [['Создано', 'Завершено', 'Статус', 'Сотрудник', 'Откуда', 'Куда', 'Артикул', 'Кол-во', 'Название']];
-      items.forEach(t => t.articles.forEach(a => rows.push([fmtStamp(new Date(t.createdAt)), t.completedAt ? fmtStamp(new Date(t.completedAt)) : '', t.status === 'done' ? 'Завершено' : 'В процессе', t.employee || '', t.sourceCell, t.destCell, a.article, a.qty, nameOf(a.article)])));
+      const rows = [['Создано', 'Завершено', 'Статус', 'Сотрудник', 'Откуда', 'Куда', 'Артикул', 'Кол-во', 'Название', 'Выполнил (Telegram)']];
+      items.forEach(t => t.articles.forEach(a => rows.push([fmtStamp(new Date(t.createdAt)), t.completedAt ? fmtStamp(new Date(t.completedAt)) : '', t.status === 'done' ? 'Завершено' : 'В процессе', t.employee || '', t.sourceCell, t.destCell, a.article, a.qty, nameOf(a.article), t.completedBy && t.completedBy !== '__app__' ? t.completedBy : ''])));
       const wb = XLSX.utils.book_new(); const ws = XLSX.utils.aoa_to_sheet(rows);
-      ws['!cols'] = [17, 17, 12, 16, 14, 14, 14, 8, 50].map(w => ({ wch: w }));
+      ws['!cols'] = [17, 17, 12, 16, 14, 14, 14, 8, 50, 18].map(w => ({ wch: w }));
       XLSX.utils.book_append_sheet(wb, ws, 'Перемещения');
       const d = new Date(); XLSX.writeFile(wb, `peremescheniya_${d.getFullYear()}-${pad2(d.getMonth()+1)}-${pad2(d.getDate())}.xlsx`);
     }catch(e){ showToast(e.message || 'Не удалось сформировать файл'); }
@@ -3183,6 +3241,55 @@ async function uploadSheetRows(sheet, rows, onProgress, chunkSize){
   }
 }
 
+// После загрузки читаем лист обратно и сверяем с файлом. В живой таблице у ~740 строк пропали
+// название/статус (в файле они были) — причина записи с потерями не установлена, поэтому
+// проверяем результат и дозаписываем недостающие строки (до двух попыток).
+const uploadChecks = {};
+function cellNorm(v){ if(v == null) return ''; return String(v).trim(); }
+function rowSig(r, width){ const o = []; for(let c = 0; c < width; c++) o.push(cellNorm(r ? r[c] : '')); return o.join('\u0001'); }
+async function fetchSheetRaw(sheet){
+  const r = await fetch(`${APPS_SCRIPT_URL}?data=${sheet}&_=${Date.now()}`);
+  if(!r.ok) throw new Error('HTTP ' + r.status);
+  const j = await r.json();
+  if(j && j.error) throw new Error(j.error);
+  return (j && j.rows) || [];
+}
+function findBadRows(rows, live, width){
+  const bad = [];
+  for(let i = 0; i < rows.length; i++) if(rowSig(rows[i], width) !== rowSig(live[i], width)) bad.push(i);
+  return bad;
+}
+async function verifyAndRepair(sheet, rows, setMsg){
+  const width = rows.reduce((m, r) => Math.max(m, r.length), 0);
+  let firstBad = null, fixed = 0;
+  for(let pass = 0; pass < 3; pass++){
+    setMsg('Проверяю, что в таблице всё записалось…');
+    const live = await fetchSheetRaw(sheet);
+    const bad = findBadRows(rows, live, width);
+    if(firstBad === null) firstBad = bad.length;
+    if(!bad.length) return { ok: true, total: rows.length, firstBad, fixed };
+    if(pass === 2) return { ok: false, total: rows.length, firstBad, left: bad.length, sample: bad.slice(0, 5).map(i => i + 1) };
+    setMsg(`В таблице не хватает данных в ${bad.length} строках, дозаписываю…`);
+    const groups = [];
+    let g = null;
+    bad.forEach(i => {
+      if(g && i - g.end <= 40 && g.end - g.start < 250) g.end = i;
+      else { g = { start: i, end: i }; groups.push(g); }
+    });
+    for(const gr of groups){
+      await adminCall({ action: 'admin_upload_sheet', sheet, rows: rows.slice(gr.start, gr.end + 1), mode: 'at', startRow: gr.start + 1 });
+    }
+    fixed = bad.length;
+  }
+}
+function uploadCheckHtml(sheet){
+  const c = uploadChecks[sheet];
+  if(!c) return '';
+  if(c.error) return `<div class="adm-sub" style="color:var(--red);margin-bottom:8px;">⚠ Проверка после загрузки не удалась: ${escapeHtml(c.error)}</div>`;
+  if(c.ok) return `<div class="adm-sub" style="color:var(--green);margin-bottom:8px;">✅ Проверено: таблица совпадает с файлом (${c.total} строк)${c.firstBad ? `. При первой записи потерялись данные в ${c.firstBad} строках — они дозаписаны автоматически` : ''}.</div>`;
+  return `<div class="adm-sub" style="color:var(--red);margin-bottom:8px;">⚠ После загрузки в таблице расходятся ${c.left} строк из ${c.total} (например, строки ${c.sample.join(', ')}). Повторите загрузку; если повторится — сообщите мне.</div>`;
+}
+
 function renderAdminData(body){
   const block = (sheet, title, hint) => {
     const p = uploadPending[sheet];
@@ -3191,6 +3298,7 @@ function renderAdminData(body){
       <h2>${title}</h2>
       <div class="adm-sub" style="margin:-4px 0 10px;">${hint}</div>
       <div class="muted" style="margin-bottom:10px;">Последняя загрузка через страницу: <b>${escapeHtml(fmtUploaded(sheet))}</b></div>
+      ${uploadCheckHtml(sheet)}
       <input type="file" id="upl_${sheet}" accept=".xls,.xlsx,.csv" ${uploadBusy ? 'disabled' : ''} style="width:100%;margin-bottom:8px;">
       <div id="uplInfo_${sheet}">${p ? `
         <div class="adm-row" style="margin-top:6px;"><div class="adm-main">${escapeHtml(p.fileName)}
@@ -3245,14 +3353,21 @@ function renderAdminData(body){
     const prog = document.getElementById('uplProg_' + sheet);
     try{
       await uploadSheetRows(sheet, p.rows, (done, total) => { if(prog) prog.textContent = `Загружено ${done} из ${total} строк…`; }, sheet === 'cells' ? 250 : 1200);
+      const rowsSent = p.rows;
       delete uploadPending[sheet];
+      try{
+        uploadChecks[sheet] = await verifyAndRepair(sheet, rowsSent, msg => { if(prog) prog.textContent = msg; });
+      }catch(err){
+        uploadChecks[sheet] = { error: err.message || 'ошибка' };
+      }
       uploadBusy = false;
       if(prog) prog.textContent = 'Готово, обновляю данные…';
       lastRowsRaw = null;
       await fetchConfig();
       await Promise.all([sheet === 'ostatki' ? fetchOstatki() : Promise.resolve(), sheet === 'vitrina' ? fetchVitrina() : Promise.resolve(), loadState(true)]);
       if(sheet === 'cells'){ try { localStorage.removeItem(CELLS_CACHE_KEY); } catch(e) {} cellsLoadedFor = null; await loadCellsIfNeeded(); }
-      showToast('Данные загружены');
+      const uc = uploadChecks[sheet];
+      showToast(uc && uc.ok ? 'Данные загружены и проверены' : 'Данные загружены, но проверка нашла расхождения — см. раздел «Данные»');
     }catch(e){
       uploadBusy = false;
       showToast(e.message || 'Не удалось загрузить');
@@ -3385,65 +3500,119 @@ function downloadReportXlsx(R){
 }
 
 // ---------- АДМИНКА: TELEGRAM ----------
-let tgChats = null;       // найденные чаты
-let tgChosen = '';
-let tgStatus = null;      // {configured, last:{ok,at,text}}
+// Бот принимает «Старт» от сотрудников (они попадают в список «ждут подключения»), вы вписываете имя и
+// включаете. Новое перемещение приходит всем включённым, кнопка «Выполнил!» отмечает его в таблице
+// и обновляет сообщение у всех.
+let tgState = null;
+let tgStateErr = '';
+function tgSiteDefault(){
+  try{
+    if(!/^https?:$/.test(location.protocol)) return '';
+    return (location.origin + location.pathname).replace(/index\.html$/i, '');
+  }catch(e){ return ''; }
+}
 async function renderAdminTelegram(body){
-  try{ tgStatus = await adminCall({ action: 'admin_telegram_status' }); }catch(e){ tgStatus = null; }
+  tgStateErr = '';
+  try{ tgState = await adminCall({ action: 'admin_telegram_state' }); }catch(e){ tgState = null; tgStateErr = e.message || 'ошибка'; }
   if(adminSection !== 'telegram') return;
-  const last = tgStatus && tgStatus.last;
+  const s = tgState;
+  if(s) telegramEnabled = !!(s.connected && (s.recipients || []).some(r => r.approved && r.enabled));
+  const last = s && s.last;
   const lastHtml = last
-    ? (last.ok ? `<div class="adm-sub" style="color:var(--green);">Последняя отправка успешна: ${escapeHtml(fmtDate(last.at))}</div>`
+    ? (last.ok ? `<div class="adm-sub" style="color:var(--green);">Последняя отправка: ${escapeHtml(fmtDate(last.at))}${last.text ? ' · ' + escapeHtml(last.text) : ''}</div>`
                : `<div class="adm-sub" style="color:var(--red);">Последняя ошибка (${escapeHtml(fmtDate(last.at))}): ${escapeHtml(last.text || 'неизвестно')}</div>`)
     : '<div class="adm-sub">Отправок ещё не было.</div>';
+  const w = s && s.webhook;
+  let webhookHtml = '';
+  if(s && s.connected && w){
+    webhookHtml = w.set
+      ? `<div class="adm-sub">Приём нажатий кнопок: ✅ адрес зарегистрирован в Telegram${w.pending ? ` · в очереди у Telegram: ${w.pending}` : ''}</div>`
+      : '<div class="adm-sub" style="color:var(--red);">Приём нажатий кнопок: адрес в Telegram не зарегистрирован — нажмите «Подключить бота» ещё раз.</div>';
+    if(w.lastError){
+      webhookHtml += `<div class="adm-sub" style="color:var(--orange-soft);">Telegram сообщает: ${escapeHtml(w.lastError)}${/302/.test(w.lastError) ? '. Код 302 — особенность Apps Script (он отвечает перенаправлением); запрос при этом обычно доходит. Проверьте на деле: «Отправить тест» и кнопка «Выполнил!» под перемещением.' : ''}</div>`;
+    }
+  }
+  const recs = (s && s.recipients) || [];
+  const typeLabel = r => (String(r.chatId).indexOf('-') === 0 || /group/.test(r.type)) ? 'группа' : 'личный чат';
+  const recHtml = recs.length ? recs.map(r => {
+    const state = !r.approved ? '<span class="status-pill status-pending">ждёт подключения</span>' : (r.enabled ? '<span class="status-pill status-done">включён</span>' : '<span class="status-pill status-stale">выключен</span>');
+    return `<div class="adm-row tg-rec" data-tg-row="${escapeAttr(r.chatId)}" style="flex-wrap:wrap;gap:8px;">
+      <div class="adm-main" style="min-width:200px;">${escapeHtml(r.title || r.chatId)}${r.username ? ' <span class="muted">@' + escapeHtml(r.username) + '</span>' : ''} ${state}
+        <div class="adm-sub">${typeLabel(r)} · id ${escapeHtml(r.chatId)}</div></div>
+      <div class="adm-actions" style="flex-wrap:wrap;gap:6px;align-items:center;">
+        <input type="text" data-tg-name="${escapeAttr(r.chatId)}" value="${escapeAttr(r.name || '')}" placeholder="Имя (как бот будет обращаться)" maxlength="40" style="min-width:190px;">
+        <label class="muted" style="display:flex;gap:4px;align-items:center;"><input type="checkbox" data-tg-en="${escapeAttr(r.chatId)}" ${(!r.approved || r.enabled) ? 'checked' : ''}> получает</label>
+        <button type="button" class="btn btn-primary btn-small" data-tg-save="${escapeAttr(r.chatId)}">${r.approved ? 'Сохранить' : 'Подключить'}</button>
+        <button type="button" class="btn btn-danger btn-small" data-tg-del="${escapeAttr(r.chatId)}">Удалить</button>
+      </div></div>`;
+  }).join('') : `<div class="empty-state">Пока никого. ${s && s.bot ? 'Пусть сотрудники откроют бота и нажмут «Старт»:' : 'Сначала подключите бота.'}</div>`;
+  const inviteHtml = s && s.bot ? `<div class="adm-sub" style="margin:8px 0;">Ссылка на бота для сотрудников: <b>https://t.me/${escapeHtml(s.bot)}</b> · группа: добавьте бота в группу и отправьте там <code>/start</code></div>` : '';
+  const siteVal = (s && s.siteUrl) || tgSiteDefault();
   body.innerHTML = `
     <div class="card">
-      <h2>Telegram-уведомления кладовщику</h2>
-      <div class="adm-row"><div class="adm-main">Статус<div class="adm-sub">${telegramEnabled ? '✅ подключено — о каждой новой заявке на выставление приходит сообщение' : 'не подключено'}</div>${lastHtml}</div>
-        <div class="adm-actions">${telegramEnabled ? '<button type="button" class="btn btn-ghost btn-small" id="tgTest">Отправить тест</button><button type="button" class="btn btn-ghost btn-small" id="tgOff">Отключить</button>' : ''}</div></div>
+      <h2>Telegram: бот для кладовщиков</h2>
+      ${tgStateErr ? `<div class="adm-sub" style="color:var(--red);">Не удалось получить состояние: ${escapeHtml(tgStateErr)}</div>` : ''}
+      <div class="adm-row"><div class="adm-main">Бот<div class="adm-sub">${s && s.connected ? '✅ подключён' + (s.bot ? ': @' + escapeHtml(s.bot) : '') : 'не подключён'}</div>${webhookHtml}${lastHtml}</div>
+        <div class="adm-actions">${s && s.connected ? '<button type="button" class="btn btn-ghost btn-small" id="tgTest">Отправить тест</button><button type="button" class="btn btn-ghost btn-small" id="tgOff">Отключить</button>' : ''}</div></div>
       <div class="adm-sub" style="line-height:1.55;margin:10px 0;">
-        <b>Хостинг не нужен</b> — сообщения отправляет сам скрипт Google (Apps Script) напрямую в Telegram. Токен хранится только на стороне скрипта и странице не отдаётся.<br>
-        <b>0) Один раз выдайте скрипту доступ в интернет.</b> Откройте редактор Apps Script → вверху выберите функцию <code>authorizeTelegram</code> → «Выполнить» → «Разрешить». Без этого Telegram молчит, а ошибка будет написана выше.<br>
-        1) В Telegram откройте @BotFather → <code>/newbot</code> → придумайте имя → скопируйте токен.<br>
-        2) Кладовщик пишет вашему боту <code>/start</code> (либо добавьте бота в общую группу и напишите там любое сообщение; если группа молчит — в @BotFather отключите Group Privacy и добавьте бота заново).<br>
-        3) Вставьте токен ниже и нажмите «Найти чат», выберите чат, сохраните и нажмите «Отправить тест».
+        Каждое новое перемещение из корзины приходит <b>всем включённым</b> получателям: маршрут, ссылки «QR» на обе ячейки, артикулы и количество, кнопка <b>«Выполнил!»</b>.
+        Кто-то один нажал — перемещение отмечается в таблице (с его именем), а сообщение у всех обновляется. Так же сообщения обновляются, если перемещение завершили или отменили на сайте.<br>
+        <b>0) Один раз:</b> в редакторе Apps Script выберите функцию <code>authorizeTelegram</code> → «Выполнить» → «Разрешить», затем «Развернуть → Управление развёртываниями → Изменить → Новая версия».<br>
+        1) @BotFather → <code>/newbot</code> → скопируйте токен и вставьте ниже → «Подключить бота».<br>
+        2) Сотрудники открывают бота и нажимают «Старт» — они появятся в списке ниже.<br>
+        3) В списке впишите имя и нажмите «Подключить». Бот будет обращаться по этому имени и подписывать выполненное («ВЫПОЛНИЛ БОБУР!»).
       </div>
-      <input type="password" id="tgToken" placeholder="Токен бота" autocomplete="off" style="width:100%;margin-bottom:8px;">
-      <div class="adm-actions" style="margin-bottom:8px;"><button type="button" class="btn btn-ghost btn-small" id="tgFind">Найти чат</button></div>
-      <div id="tgChats">${tgChats === null ? '' : (tgChats.length ? tgChats.map(c => `<button type="button" class="employee-btn ${tgChosen === c.id ? 'selected' : ''}" data-tg-chat="${escapeAttr(c.id)}">${escapeHtml(c.label)} · ${escapeHtml(c.type)}</button>`).join(' ') : '<div class="adm-sub">Чатов не найдено: сначала отправьте боту сообщение (шаг 2). Telegram хранит такие обновления не дольше суток.</div>')}</div>
-      <div class="adm-add"><input type="text" id="tgChatId" placeholder="ID чата (подставится после выбора)" value="${escapeAttr(tgChosen)}"><button type="button" class="btn btn-primary" id="tgSave">Сохранить</button></div>
+      <input type="password" id="tgToken" placeholder="Токен бота (чтобы сменить бота — вставьте новый)" autocomplete="off" style="width:100%;margin-bottom:8px;">
+      <div class="adm-actions"><button type="button" class="btn btn-primary" id="tgConnect">Подключить бота</button></div>
+    </div>
+    <div class="card">
+      <h2>Получатели <span>${recs.length}</span></h2>
+      ${inviteHtml}
+      ${recHtml}
+    </div>
+    <div class="card">
+      <h2>Ссылки «QR» в сообщениях</h2>
+      <div class="adm-sub" style="line-height:1.5;margin:-4px 0 10px;">Слово «QR» в сообщении — ссылка на эту страницу с QR нужной ячейки (откроется крупно). Укажите адрес, по которому открывается ваша страница (GitHub Pages). Если пусто, «QR» будет просто текстом.</div>
+      <div class="adm-add"><input type="text" id="tgSite" value="${escapeAttr(siteVal)}" placeholder="https://ваш-логин.github.io/репозиторий/"><button type="button" class="btn btn-primary" id="tgSiteSave">Сохранить адрес</button></div>
     </div>`;
-  const tok = () => document.getElementById('tgToken').value.trim();
-  const redraw = async (keep) => { await renderAdminTelegram(body); if(keep !== undefined) document.getElementById('tgToken').value = keep; };
-  document.getElementById('tgFind').addEventListener('click', async () => {
-    if(!tok()){ showToast('Вставьте токен бота'); return; }
+  const redraw = async () => { await renderAdminTelegram(body); };
+  document.getElementById('tgConnect').addEventListener('click', async () => {
+    const tok = document.getElementById('tgToken').value.trim();
+    if(!tok){ showToast('Вставьте токен бота'); return; }
     try{
-      const r = await adminCall({ action: 'admin_telegram_find_chats', botToken: tok() });
-      tgChats = r.chats || [];
-      if(tgChats.length === 1) tgChosen = tgChats[0].id;
-      await redraw(tok());
-    }catch(e){ showToast(e.message || 'Не удалось получить чаты'); }
-  });
-  body.querySelectorAll('[data-tg-chat]').forEach(b => b.addEventListener('click', () => { tgChosen = b.dataset.tgChat; const keep = tok(); redraw(keep); }));
-  document.getElementById('tgSave').addEventListener('click', async () => {
-    const chat = document.getElementById('tgChatId').value.trim();
-    if(!tok() || !chat){ showToast('Нужны и токен, и чат'); return; }
-    try{
-      await adminCall({ action: 'admin_telegram_save', botToken: tok(), chatId: chat });
-      telegramEnabled = true; tgChats = null; tgChosen = '';
+      const r = await adminCall({ action: 'admin_telegram_connect', botToken: tok, siteUrl: document.getElementById('tgSite').value.trim(), scriptUrl: APPS_SCRIPT_URL });
+      showToast('Бот @' + (r.bot || '') + ' подключён');
       await redraw();
-      showToast('Сохранено. Нажмите «Отправить тест»');
-    }catch(e){ showToast(e.message || 'Не удалось сохранить'); }
+    }catch(e){ showToast(e.message || 'Не удалось подключить'); }
   });
+  document.getElementById('tgSiteSave').addEventListener('click', async () => {
+    try{ await adminCall({ action: 'admin_telegram_set_site', siteUrl: document.getElementById('tgSite').value.trim() }); showToast('Адрес сохранён'); }
+    catch(e){ showToast(e.message || 'Не удалось сохранить'); }
+  });
+  body.querySelectorAll('[data-tg-save]').forEach(b => b.addEventListener('click', async () => {
+    const id = b.dataset.tgSave;
+    const nameEl = body.querySelector(`[data-tg-name="${CSS.escape(id)}"]`);
+    const enEl = body.querySelector(`[data-tg-en="${CSS.escape(id)}"]`);
+    try{
+      await adminCall({ action: 'admin_telegram_recipient_save', chatId: id, name: nameEl.value.trim(), enabled: !!enEl.checked });
+      showToast('Сохранено');
+      await redraw();
+    }catch(e){ showToast(e.message || 'Не удалось сохранить'); }
+  }));
+  body.querySelectorAll('[data-tg-del]').forEach(b => b.addEventListener('click', async () => {
+    if(!confirm('Удалить получателя из списка? Ему перестанут приходить сообщения.')) return;
+    try{ await adminCall({ action: 'admin_telegram_recipient_delete', chatId: b.dataset.tgDel }); await redraw(); }
+    catch(e){ showToast(e.message || 'Не удалось удалить'); }
+  }));
   const test = document.getElementById('tgTest');
   if(test) test.addEventListener('click', async () => {
-    try{ await adminCall({ action: 'admin_telegram_test' }); showToast('Тест отправлен — проверьте Telegram'); }
+    try{ const r = await adminCall({ action: 'admin_telegram_test' }); showToast(`Тест отправлен: ${r.delivered || 0}` + ((r.failed && r.failed.length) ? `, ошибок: ${r.failed.length}` : '')); }
     catch(e){ showToast(e.message || 'Не удалось отправить'); }
     redraw();
   });
   const off = document.getElementById('tgOff');
   if(off) off.addEventListener('click', async () => {
-    if(!confirm('Отключить уведомления и удалить токен из скрипта?')) return;
+    if(!confirm('Отключить бота и удалить токен из скрипта? Список получателей сохранится.')) return;
     try{ await adminCall({ action: 'admin_telegram_disable' }); telegramEnabled = false; await redraw(); showToast('Отключено'); }
     catch(e){ showToast(e.message || 'Не удалось отключить'); }
   });
@@ -3461,7 +3630,7 @@ function renderAdminDiag(body){
   });
   const row = (it) => `<div class="adm-row"><div class="adm-main"><span class="sku sku-lg">${escapeHtml(it.code)}</span> <b class="qty-x">не выставл. ${it.notOn}</b>${escapeHtml(it.name)}
       <div class="adm-sub">${(() => { const w = stockExplain(it.code); return w.length ? 'По листу «ostatki»: ' + w.join('; ') : 'Этого кода нет в листе «ostatki».'; })()}</div></div></div>`;
-  body.innerHTML = `
+  body.innerHTML = dataWarnHtml() + `
     <div class="card">
       <h2>Нет ячейки для выставления <span>${probs.length}</span></h2>
       <div class="adm-sub" style="margin:-4px 0 10px;">Позиции, которые не выставлены, но свободного остатка вне витрины для них страница не нашла. Под каждой — что есть по листу «ostatki» и почему оно не подходит.</div>
@@ -3479,6 +3648,12 @@ function escapeHtml(s){
 }
 function escapeAttr(s){ return escapeHtml(s); }
 
+// кто нажал «Выполнил!» в Telegram (если завершили на сайте — имени нет)
+function doneByHtml(t){
+  const w = t && t.status === 'done' && t.completedBy && t.completedBy !== '__app__' ? String(t.completedBy) : '';
+  return w ? `<div class="muted" style="font-size:12px;">Выполнил: <b>${escapeHtml(w)}</b> (Telegram)</div>` : '';
+}
+
 function render(){
   renderHistoryEmployeeFilter();
   renderHistory();
@@ -3493,40 +3668,115 @@ document.getElementById('refreshBtn').addEventListener('click', async ()=>{
 });
 
 // ---------- QR-коды ячеек ----------
+let _c2q = null, _c2qSrc = null;
+function qrContentFor(code){
+  if(_c2qSrc !== QR_CONTENT_TO_CELL){
+    _c2q = {};
+    Object.keys(QR_CONTENT_TO_CELL).forEach(q => { const c = QR_CONTENT_TO_CELL[q]; if(!_c2q[c]) _c2q[c] = q; });
+    _c2qSrc = QR_CONTENT_TO_CELL;
+  }
+  return _c2q[code] || '';
+}
+function qrMatrix(content){
+  if(typeof qrcode !== 'function' || !content) return null;
+  try{
+    const q = qrcode(0, 'M');
+    q.addData(content, /^\d+$/.test(content) ? 'Numeric' : 'Byte');
+    q.make();
+    return q;
+  }catch(e){ return null; }
+}
+// QR на наклейках — картинка 61x58 пикселей: при увеличении она мутнеет. Содержимое QR (длинный
+// номер 1С) известно, поэтому рисуем тот же QR заново векторной графикой: чёткий при любом размере.
+function qrSvg(code){
+  const q = qrMatrix(qrContentFor(code));
+  if(!q) return '';
+  const n = q.getModuleCount(), quiet = 4, size = n + quiet * 2;
+  let d = '';
+  for(let r = 0; r < n; r++){
+    let c = 0;
+    while(c < n){
+      if(q.isDark(r, c)){ let e = c; while(e < n && q.isDark(r, e)) e++; d += `M${c + quiet} ${r + quiet}h${e - c}v1h-${e - c}z`; c = e; }
+      else c++;
+    }
+  }
+  return `<svg class="qr-svg" viewBox="0 0 ${size} ${size}" shape-rendering="crispEdges" role="img" aria-label="QR ${escapeAttr(code)}"><rect width="${size}" height="${size}" fill="#fff"/><path d="${d}" fill="#000"/></svg>`;
+}
+function qrPicHtml(code){
+  const svg = qrSvg(code);
+  if(svg) return svg;
+  const b64 = QR_MAP[code];
+  if(b64) return `<div class="qr-pic"><img src="data:image/png;base64,${b64}" alt="QR ${escapeAttr(code)}"></div>`;
+  return '';
+}
+function downloadQrPng(code){
+  const q = qrMatrix(qrContentFor(code));
+  if(!q){ showToast('QR для скачивания недоступен'); return; }
+  const n = q.getModuleCount(), quiet = 4, mods = n + quiet * 2, scale = Math.max(4, Math.ceil(1200 / mods)), px = mods * scale, cap = Math.round(px * 0.14);
+  const cv = document.createElement('canvas');
+  cv.width = px; cv.height = px + cap;
+  const g = cv.getContext('2d');
+  g.fillStyle = '#fff'; g.fillRect(0, 0, cv.width, cv.height);
+  g.fillStyle = '#000';
+  for(let r = 0; r < n; r++) for(let c = 0; c < n; c++) if(q.isDark(r, c)) g.fillRect((c + quiet) * scale, (r + quiet) * scale, scale, scale);
+  g.textAlign = 'center'; g.textBaseline = 'middle';
+  g.font = `bold ${Math.round(cap * 0.55)}px ui-monospace, Menlo, Consolas, monospace`;
+  g.fillText(code, px / 2, px + cap * 0.45);
+  cv.toBlob(blob => {
+    if(!blob){ showToast('Не удалось создать PNG'); return; }
+    const a = document.createElement('a');
+    a.href = URL.createObjectURL(blob);
+    a.download = 'QR_' + code.replace(/[^\w.-]+/g, '_') + '.png';
+    document.body.appendChild(a); a.click(); a.remove();
+    setTimeout(() => URL.revokeObjectURL(a.href), 4000);
+  }, 'image/png');
+}
+
 function showQrForCell(code){
   const wrap = document.getElementById('qrResultWrap');
-  const b64 = QR_MAP[code];
-  if(!b64){
+  const pic = qrPicHtml(code);
+  if(!pic){
     wrap.innerHTML = `<div class="muted">Для ячейки «${escapeHtml(code)}» QR-код не найден.</div>`;
     return;
   }
   wrap.innerHTML = `
     <div class="qr-box">
-      <img src="data:image/png;base64,${b64}" alt="QR ${escapeAttr(code)}">
+      <button type="button" class="qr-click" data-qr-cell="${escapeAttr(code)}" title="Нажмите, чтобы открыть крупно">${pic}</button>
       <div>
         <div class="qr-code-label">${escapeHtml(code)}</div>
-        <div class="muted" style="margin-top:4px;">Сверьте с наклейкой на стеллаже перед использованием.</div>
+        <div class="muted" style="margin-top:4px;">Нажмите на QR, чтобы открыть крупно. Сверьте с наклейкой на стеллаже перед использованием.</div>
       </div>
     </div>`;
+  wrap.querySelectorAll('[data-qr-cell]').forEach(b => b.addEventListener('click', () => openQrModal(b.dataset.qrCell)));
 }
 
-// модальное окно QR (вызывается кликом по ячейке в истории)
-function openQrModal(code){
+// модальное окно QR (клик по ячейке в истории, корзине, карточках, остатках)
+function openQrModal(code, big){
   const content = document.getElementById('qrModalContent');
-  const b64 = QR_MAP[code];
-  if(!b64){
+  const box = document.querySelector('#qrModalOverlay .qr-modal-box');
+  box.classList.add('qr-wide'); box.classList.remove('qr-big');
+  const pic = qrPicHtml(code);
+  if(!pic){
     content.innerHTML = `
       <div class="qr-code-label" style="margin-bottom:8px;">${escapeHtml(code)}</div>
       <div class="muted">QR-код для этой ячейки не найден в базе.</div>`;
   } else {
     content.innerHTML = `
       <div style="text-align:center;">
-        <img src="data:image/png;base64,${b64}" alt="QR ${escapeAttr(code)}" style="width:180px;height:180px;background:#fff;border-radius:8px;padding:10px;">
-        <div class="qr-code-label" style="margin-top:12px;font-size:16px;">${escapeHtml(code)}</div>
-        <div class="muted" style="margin-top:4px;">Сверьте с наклейкой на стеллаже.</div>
+        <button type="button" class="qr-click" id="qrZoom" title="Нажмите, чтобы увеличить">${pic}</button>
+        <div class="qr-code-label" style="margin-top:12px;font-size:18px;">${escapeHtml(code)}</div>
+        <div class="muted" style="margin-top:4px;">Нажмите на QR, чтобы увеличить. Сверьте с наклейкой на стеллаже.</div>
+        <div class="qr-actions"><button type="button" class="btn btn-ghost btn-small" id="qrDl">Скачать PNG</button></div>
       </div>`;
+    document.getElementById('qrZoom').addEventListener('click', () => {
+      const big = box.classList.toggle('qr-big');
+      box.classList.toggle('qr-wide', !big);
+      document.getElementById('qrZoom').style.cursor = big ? 'zoom-out' : 'zoom-in';
+    });
+    document.getElementById('qrDl').addEventListener('click', () => downloadQrPng(code));
   }
   document.getElementById('qrModalOverlay').classList.add('show');
+  if(big && pic){ const z = document.getElementById('qrZoom'); if(z) z.click(); }
 }
 function closeQrModal(){
   document.getElementById('qrModalOverlay').classList.remove('show');
@@ -3578,6 +3828,14 @@ document.getElementById('themeBtn').addEventListener('click', () => {
 });
 paintThemeBtn();
 
+// ---------- ссылка из Telegram: ?qr=КОД_ЯЧЕЙКИ открывает QR этой ячейки крупно ----------
+function handleQrParam(){
+  let code = '';
+  try { code = (new URLSearchParams(location.search).get('qr') || '').trim(); } catch(e) {}
+  if(!code) return;
+  openQrModal(code, true);
+}
+
 // ---------- init ----------
 initCellsList();
 renderEmployeeList();
@@ -3585,7 +3843,7 @@ renderHistoryEmployeeFilter();
 renderStatsPeriodFilter();
 renderInitQtyStepper();
 loadState();
-fetchConfig();
+Promise.resolve(fetchConfig()).then(() => cellsReady).catch(() => {}).then(handleQrParam);
 fetchOstatki();
 fetchVitrina();
 </script>
