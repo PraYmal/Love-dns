@@ -4072,6 +4072,8 @@ async function renderAdminTelegram(body){
       webhookHtml += `<div class="adm-sub" style="color:var(--orange-soft);">Telegram сообщает: ${escapeHtml(w.lastError)}${/302/.test(w.lastError) ? '. Код 302 — особенность Apps Script (он отвечает перенаправлением); запрос при этом обычно доходит. Проверьте на деле: «Отправить тест» и кнопка «Выполнил!» под перемещением.' : ''}</div>`;
     }
   }
+  const upd = (s && s.updates) || [];
+  const updHtml = upd.length ? upd.map(u => `<div class="adm-row"><div class="adm-main">${escapeHtml(u.what || '—')}<div class="adm-sub">${escapeHtml(fmtDate(u.at))} · чат ${escapeHtml(u.chat || '—')} · ${Number(u.ms) || 0} мс${u.err ? ' · <span style="color:var(--red);">' + escapeHtml(u.err) + '</span>' : ''}</div></div></div>`).join('') : '<div class="adm-sub">Пока ничего не приходило.</div>';
   const recs = (s && s.recipients) || [];
   const typeLabel = r => (String(r.chatId).indexOf('-') === 0 || /group/.test(r.type)) ? 'группа' : 'личный чат';
   const recHtml = recs.length ? recs.map(r => {
@@ -4096,7 +4098,7 @@ async function renderAdminTelegram(body){
       <div class="adm-row"><div class="adm-main">Бот<div class="adm-sub">${s && s.connected ? '✅ подключён' + (s.bot ? ': @' + escapeHtml(s.bot) : '') : 'не подключён'}</div>${webhookHtml}${lastHtml}</div>
         <div class="adm-actions">${s && s.connected ? '<button type="button" class="btn btn-ghost btn-small" id="tgTest">Отправить тест</button><button type="button" class="btn btn-ghost btn-small" id="tgOff">Отключить</button>' : ''}</div></div>
       <div class="adm-sub" style="line-height:1.55;margin:10px 0;">
-        Каждое новое перемещение из корзины приходит <b>всем включённым</b> получателям одним сообщением: картинка с QR-кодами ячеек «откуда» и «куда» (их можно сканировать прямо с экрана), маршрут, артикулы и количество, кнопка <b>«Выполнил!»</b>. QR берутся из листа «cells» (Админка → Данные → Ячейки и QR); если у ячейки там нет QR, на картинке будет «NO QR».
+        Новые перемещения попадают в закреплённое сообщение «Сейчас» (см. ниже); если включены отдельные сообщения, каждое приходит <b>всем включённым</b> получателям одним сообщением: картинка с QR-кодами ячеек «откуда» и «куда» (их можно сканировать прямо с экрана), маршрут, артикулы и количество, кнопка <b>«Выполнил!»</b>. QR берутся из листа «cells» (Админка → Данные → Ячейки и QR); если у ячейки там нет QR, на картинке будет «NO QR».
         Кто-то один нажал — перемещение отмечается в таблице (с его именем), а сообщение у всех обновляется. Так же сообщения обновляются, если перемещение завершили или отменили на сайте.<br>
         <b>0) Один раз:</b> в редакторе Apps Script выберите функцию <code>authorizeTelegram</code> → «Выполнить» → «Разрешить», затем «Развернуть → Управление развёртываниями → Изменить → Новая версия».<br>
         1) @BotFather → <code>/newbot</code> → скопируйте токен и вставьте ниже → «Подключить бота».<br>
@@ -4128,7 +4130,7 @@ async function renderAdminTelegram(body){
     <div class="card">
       <h2>Закреплённая задача «Сейчас»</h2>
       <div class="adm-sub" style="line-height:1.55;margin:-4px 0 10px;">
-        В каждом чате бота одно закреплённое сообщение: <b>первая невыполненная задача</b> крупно, кнопки «✅ Выполнено» и «⏭ Позже» и список следующих. Оно обновляется само (без новых звуков), а задача остаётся первой, пока её не выполнят или не нажмут «Позже» — тогда она уходит в конец очереди. В группе боту нужно право закреплять сообщения. Кнопка «📌 Сейчас» (в группе — команда <code>/now</code>) присылает табло заново, если оно потерялось.
+        В каждом чате бота <b>одно закреплённое сообщение</b>: картинка с QR «откуда» и «куда» для первой невыполненной задачи, под ней артикулы с названиями, кнопки «✅ Выполнено» и «⏭ Позже» и список следующих. Новые перемещения не приходят отдельными сообщениями — это сообщение правится на месте. Кнопка «📋 Вся очередь» присылает полный список (его можно закрыть крестиком). Кнопка «📌 Сейчас» (в группе — команда <code>/now</code>) присылает табло заново, если оно потерялось. В группе боту нужно право закреплять сообщения.
       </div>
       ${bd.note ? `<div class="adm-sub" style="color:var(--red);margin-bottom:8px;">${escapeHtml(bd.note)}</div>` : ''}
       <div class="adm-row"><div class="adm-main">Табло<div class="adm-sub">${bd.enabled ? '✅ включено' : 'выключено'}</div></div>
@@ -4137,6 +4139,17 @@ async function renderAdminTelegram(body){
           <button type="button" class="btn btn-primary btn-small" id="tgBoardOn">${bd.enabled ? 'Сохранить' : 'Включить'}</button>
           ${bd.enabled ? '<button type="button" class="btn btn-ghost btn-small" id="tgBoardOff">Выключить</button>' : ''}
         </div></div>
+      <div class="adm-fchecks" style="margin-top:12px;">
+        <label><input type="checkbox" id="tgBoardOnly" ${bd.only !== false ? 'checked' : ''}> Только табло — без отдельных сообщений о каждом перемещении</label>
+        <label><input type="checkbox" id="tgBoardPing" ${bd.ping !== false ? 'checked' : ''}> Короткий сигнал «🔔 Новое перемещение» со звуком (удаляется сам)</label>
+      </div>
+      <div class="adm-sub" style="line-height:1.5;">Правка закреплённого сообщения приходит без звука. Поэтому, когда очередь была пуста, табло присылается заново со звуком, а когда в очереди уже что-то есть — звук даёт короткий сигнал (его можно отключить). Если сигнал не удалился сам, он удалится при следующем обновлении табло.</div>
+    </div>
+    <div class="card">
+      <h2>Журнал входящих от Telegram</h2>
+      <div class="adm-sub" style="line-height:1.55;margin:-4px 0 10px;">Последние нажатия кнопок и команды, которые дошли до таблицы. Если вы нажали кнопку или набрали команду, а здесь пусто — Telegram не доставляет запросы (смотрите блок «Приём нажатий кнопок» выше и «Ускорение нажатий»). Если запись есть, но с ошибкой — пришлите её мне.</div>
+      ${updHtml}
+    </div></div>
     </div>
     <div class="card">
       <h2>Ускорение нажатий из Telegram</h2>
@@ -4165,7 +4178,7 @@ async function renderAdminTelegram(body){
     </div>`;
   const redraw = async () => { await renderAdminTelegram(body); };
   const boardCall = async (enabled) => {
-    try{ await adminCall({ action: 'admin_telegram_board', enabled, order: document.getElementById('tgBoardOrder').value }); QUEUE_ORDER = document.getElementById('tgBoardOrder').value; showToast(enabled ? 'Табло включено' : 'Табло выключено'); }
+    try{ await adminCall({ action: 'admin_telegram_board', enabled, order: document.getElementById('tgBoardOrder').value, only: document.getElementById('tgBoardOnly').checked, ping: document.getElementById('tgBoardPing').checked }); QUEUE_ORDER = document.getElementById('tgBoardOrder').value; showToast(enabled ? 'Табло включено' : 'Табло выключено'); }
     catch(e){ showToast(e.message || 'Не удалось сохранить'); }
     redraw();
   };
