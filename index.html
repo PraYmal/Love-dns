@@ -579,6 +579,27 @@
   .urg-check{display:flex;gap:9px;align-items:flex-start;margin:10px 0;padding:10px 12px;border:1px solid var(--line);border-radius:10px;cursor:pointer;font-size:13.5px;line-height:1.4;}
   .urg-check input{margin-top:2px;width:17px;height:17px;flex:none;}
   .urg-check.on{border-color:var(--red);background:var(--red-dim);}
+  .msg-grid{display:grid;grid-template-columns:minmax(0,1.15fr) minmax(0,1fr);gap:18px;align-items:start;}
+  @media (max-width:860px){.msg-grid{grid-template-columns:minmax(0,1fr);}}
+  .msg-prev{position:sticky;top:8px;}
+  @media (max-width:860px){.msg-prev{position:static;}}
+  .msg-field{margin-bottom:14px;}
+  .msg-flabel{display:flex;gap:8px;align-items:center;flex-wrap:wrap;margin-bottom:5px;font-size:13.5px;}
+  .msg-flabel .an-tgl{margin-left:auto;}
+  .msg-flabel .an-tgl:disabled{opacity:.4;cursor:default;}
+  .msg-mod{font-size:11px;font-weight:700;color:var(--orange-soft);background:var(--orange-dim);border-radius:999px;padding:1px 8px;}
+  .msg-ta{width:100%;box-sizing:border-box;resize:vertical;min-height:38px;line-height:1.45;font-size:14px;}
+  .msg-toks{display:flex;flex-wrap:wrap;gap:5px;margin-top:6px;}
+  .msg-tok{background:var(--charcoal-800);border:1px solid var(--line);color:var(--text);border-radius:7px;padding:3px 8px;font-size:12px;cursor:pointer;font-family:"IBM Plex Mono",ui-monospace,monospace;}
+  .msg-tok:hover{border-color:var(--orange);}
+  .msg-tokhelp{margin-top:5px;font-size:12px;color:var(--text-dim);}
+  .msg-tokhelp summary{cursor:pointer;}
+  .msg-tokhelp div{margin:3px 0 0 4px;line-height:1.4;}
+  .msg-plabel{font-size:11.5px;color:var(--text-dim);margin:10px 0 3px 4px;}
+  .msg-bubble-wrap{display:flex;margin:4px 0;}
+  .msg-bubble{background:var(--charcoal-700);border:1px solid var(--line);border-radius:14px 14px 14px 4px;padding:9px 12px;font-size:14px;line-height:1.4;white-space:pre-wrap;word-break:break-word;max-width:100%;min-width:0;}
+  .msg-bubble a{color:var(--orange-soft);text-decoration:underline;}
+  .msg-bubble code{font-family:"IBM Plex Mono",ui-monospace,monospace;font-size:.92em;background:rgba(128,128,140,.2);padding:0 4px;border-radius:4px;}
   .stock-req{display:flex;gap:10px;align-items:center;justify-content:space-between;flex-wrap:wrap;margin:10px 0;padding:10px 12px;border:1px solid var(--line);border-radius:10px;}
   .task-now{display:inline-block;font-size:12.5px;font-weight:700;color:var(--green);background:var(--green-dim);border-radius:999px;padding:3px 11px;margin-bottom:10px;}
   .task-next{font-size:13px;font-weight:600;color:var(--text-dim);margin:18px 2px 8px;}
@@ -3630,7 +3651,7 @@ function renderAdmin(){
   }
   loginWrap.style.display = 'none';
   mainWrap.style.display = 'block';
-  const sections = [['overview','Обзор'],['showcase','Витрина'],['data','Данные'],['report','Отчёт'],['analytics','Аналитика'],['diag','Проблемы'],['telegram','Telegram'],['employees','Сотрудники'],['transfers','Перемещения'],['audit','Журнал'],['system','Система'],['settings','Настройки'],['password','Пароль']];
+  const sections = [['overview','Обзор'],['showcase','Витрина'],['data','Данные'],['report','Отчёт'],['analytics','Аналитика'],['diag','Проблемы'],['telegram','Telegram'],['messages','Сообщения'],['employees','Сотрудники'],['transfers','Перемещения'],['audit','Журнал'],['system','Система'],['settings','Настройки'],['password','Пароль']];
   const nav = document.getElementById('adminSections');
   nav.innerHTML = sections.map(([id,label]) => `<button type="button" class="employee-btn ${adminSection === id ? 'selected' : ''}" data-adm-sec="${id}">${label}</button>`).join('');
   nav.querySelectorAll('[data-adm-sec]').forEach(b => b.addEventListener('click', () => { adminSection = b.dataset.admSec; renderAdmin(); }));
@@ -3646,6 +3667,7 @@ function renderAdmin(){
   else if(adminSection === 'audit') renderAdminAudit(body);
   else if(adminSection === 'system') renderAdminSystem(body);
   else if(adminSection === 'telegram') renderAdminTelegram(body);
+  else if(adminSection === 'messages') renderAdminMessages(body);
   else if(adminSection === 'diag') renderAdminDiag(body);
   else renderAdminPassword(body);
 }
@@ -5144,6 +5166,203 @@ function srvTextForCopy_(srv){
   return 'Время работы скрипта за сегодня:\n' + k.map(n => `${n}: ${srv[n].n} шт., в среднем ${perfMs_(Math.round(srv[n].sum / Math.max(1, srv[n].n)))}, максимум ${perfMs_(srv[n].max)}`).join('\n');
 }
 
+// ---------- v31: АДМИНКА: КОНСТРУКТОР СООБЩЕНИЙ TELEGRAM ----------
+// Тексты сообщений бота правятся здесь. Справа от текста (на телефоне — под ним) виден пример так, как его увидят в Telegram.
+let msgSt = null, msgErrMsg = '', msgSeq = 0, msgKind = 'transfer', msgDraft = {}, msgFooterDraft = null, msgPrevTimer = null, msgPrevSeq = 0;
+const MSG_ALLOWED_TAGS = { B: 1, I: 1, U: 1, S: 1, CODE: 1, A: 1 };
+// Безопасный показ разметки Telegram: пропускаем только b, i, u, s, code и ссылки http(s); всё остальное — как текст
+function tgHtmlInto_(el, html){
+  el.textContent = '';
+  let doc;
+  try { doc = new DOMParser().parseFromString('<div>' + html + '</div>', 'text/html'); } catch(e) { el.textContent = html; return; }
+  const walk = (src, dst) => {
+    src.childNodes.forEach(n => {
+      if(n.nodeType === 3){ dst.appendChild(document.createTextNode(n.nodeValue)); return; }
+      if(n.nodeType !== 1) return;
+      if(!MSG_ALLOWED_TAGS[n.tagName]){ walk(n, dst); return; }
+      const e = document.createElement(n.tagName.toLowerCase());
+      if(n.tagName === 'A'){
+        const h = n.getAttribute('href') || '';
+        if(/^https?:\/\//i.test(h)){ e.setAttribute('href', h); e.setAttribute('target', '_blank'); e.setAttribute('rel', 'noopener'); }
+      }
+      walk(n, e); dst.appendChild(e);
+    });
+  };
+  walk(doc.body.firstChild || doc.body, el);
+}
+async function renderAdminMessages(body){
+  const my = ++msgSeq;
+  if(!msgSt) body.innerHTML = '<div class="card"><h2>Сообщения</h2><div class="adm-sub">Загружаю…</div></div>';
+  try { msgSt = await adminCall({ action: 'admin_tpl_state' }); msgErrMsg = ''; }
+  catch(e) { msgErrMsg = e.message || 'Не удалось получить настройки'; }
+  if(my !== msgSeq || adminSection !== 'messages') return;
+  drawMessages(body);
+}
+function msgKindObj_(){ return msgSt && msgSt.kinds.find(k => k.key === msgKind); }
+function msgDraftOf_(k){
+  const d = msgDraft[k.key] = msgDraft[k.key] || { fields: {}, footer: k.footer };
+  return d;
+}
+function msgChanged_(k){
+  const d = msgDraft[k.key];
+  if(!d) return false;
+  return k.fields.some(f => d.fields[f.key] !== undefined && d.fields[f.key] !== f.cur) || d.footer !== k.footer;
+}
+function msgFieldVal_(k, f){ const d = msgDraft[k.key]; return (d && d.fields[f.key] !== undefined) ? d.fields[f.key] : f.cur; }
+function drawMessages(body){
+  if(!msgSt){
+    body.innerHTML = `<div class="card"><h2>Сообщения</h2><div class="adm-sub" style="color:var(--red);">${escapeHtml(msgErrMsg || 'Нет данных')}</div><div class="adm-actions" style="margin-top:10px;"><button type="button" class="btn btn-ghost btn-small" id="msgRetry">Повторить</button></div></div>`;
+    document.getElementById('msgRetry').addEventListener('click', () => renderAdminMessages(body));
+    return;
+  }
+  const S = msgSt, k = msgKindObj_() || S.kinds[0];
+  msgKind = k.key;
+  const d = msgDraftOf_(k);
+  const ft = msgFooterDraft || S.footer;
+  const chips = S.kinds.map(x => `<button type="button" class="employee-btn ${x.key === k.key ? 'selected' : ''}" data-msg-kind="${escapeAttr(x.key)}">${escapeHtml(x.title)}${msgChanged_(x) ? ' ●' : ''}</button>`).join('');
+  const fieldsHtml = k.fields.map(f => {
+    const val = msgFieldVal_(k, f);
+    const mod = val !== f.def;
+    const toks = f.tokens.length
+      ? `<div class="msg-toks">${f.tokens.map(([n, desc]) => `<button type="button" class="msg-tok" data-msg-ins="${escapeAttr(f.key)}" data-msg-tok="${escapeAttr(n)}" title="${escapeAttr(desc)}">{${escapeHtml(n)}}</button>`).join('')}</div><details class="msg-tokhelp"><summary>Что значат подстановки</summary>${f.tokens.map(([n, desc]) => `<div><code>{${escapeHtml(n)}}</code> — ${escapeHtml(desc)}</div>`).join('')}</details>`
+      : '<div class="adm-sub">Подстановок в этом поле нет — только текст.</div>';
+    return `<div class="msg-field" data-msg-field="${escapeAttr(f.key)}">
+      <div class="msg-flabel"><b>${escapeHtml(f.label)}</b>${mod ? ' <span class="msg-mod">изменено</span>' : ''}<button type="button" class="an-tgl" data-msg-fdef="${escapeAttr(f.key)}" ${mod ? '' : 'disabled'}>Стандартный текст</button></div>
+      <textarea class="msg-ta" data-msg-ta="${escapeAttr(f.key)}" rows="${Number(f.rows) || 2}" maxlength="1500" spellcheck="false">${escapeHtml(val)}</textarea>
+      ${toks}
+    </div>`;
+  }).join('');
+  body.innerHTML = `
+    <div class="card">
+      <h2>Подпись под сообщениями</h2>
+      <div class="adm-sub" style="line-height:1.55;margin:-4px 0 10px;">Эта строка добавляется последней во все сообщения бота: перемещения, табло, очередь, напоминания, сводка. Для отдельного вида сообщений её можно отключить ниже.</div>
+      <label class="adm-fchecks" style="display:flex;gap:8px;align-items:center;margin-bottom:8px;"><input type="checkbox" id="msgFtOn" ${ft.on ? 'checked' : ''}> Добавлять подпись</label>
+      <div style="display:flex;gap:8px;flex-wrap:wrap;align-items:center;">
+        <input type="text" id="msgFtText" value="${escapeAttr(ft.text)}" maxlength="300" placeholder="Например, ссылка на сайт" style="flex:1;min-width:220px;">
+        <label class="muted" style="display:flex;gap:6px;align-items:center;white-space:nowrap;">Пустых строк перед ней <select class="adm-select" id="msgFtGap" style="width:auto;">${[0, 1, 2, 3].map(n => `<option value="${n}" ${Number(ft.gap) === n ? 'selected' : ''}>${n}</option>`).join('')}</select></label>
+        <button type="button" class="btn btn-primary btn-small" id="msgFtSave">Сохранить подпись</button>
+      </div>
+      <div class="msg-bubble-wrap"><div class="msg-bubble" id="msgFtPrev"></div></div>
+    </div>
+    <div class="card">
+      <h2>Конструктор сообщений</h2>
+      <div class="adm-sub" style="line-height:1.55;margin:-4px 0 10px;">Выберите сообщение, поправьте текст — справа пример. Можно писать эмодзи и теги <code>&lt;b&gt;жирный&lt;/b&gt;</code>, <code>&lt;i&gt;курсив&lt;/i&gt;</code>, <code>&lt;u&gt;</code>, <code>&lt;s&gt;</code>, <code>&lt;code&gt;</code>, <code>&lt;a href="https://…"&gt;ссылка&lt;/a&gt;</code> (каждый тег нужно закрывать). Слова в фигурных скобках, например <code>{маршрут}</code>, заменяются данными — нажмите на подстановку под полем, чтобы вставить её. Строка, где все подстановки оказались пустыми, в сообщении не показывается. Точка ● — есть несохранённые правки.</div>
+      <div class="employee-list" style="margin-bottom:12px;">${chips}</div>
+      <div class="adm-sub" style="margin-bottom:10px;">${escapeHtml(k.note || '')}</div>
+      ${msgErrMsg ? `<div class="adm-sub" style="color:var(--red);margin-bottom:8px;">${escapeHtml(msgErrMsg)}</div>` : ''}
+      <div class="msg-grid">
+        <div class="msg-edit">
+          ${fieldsHtml}
+          <label class="adm-fchecks" style="display:flex;gap:8px;align-items:center;margin:10px 0;"><input type="checkbox" id="msgKFooter" ${d.footer ? 'checked' : ''}> Добавлять подпись в это сообщение</label>
+          <div class="adm-actions" style="flex-wrap:wrap;gap:6px;">
+            <button type="button" class="btn btn-primary" id="msgSave">Сохранить</button>
+            <button type="button" class="btn btn-ghost btn-small" id="msgTest">Отправить пример мне</button>
+            <button type="button" class="btn btn-ghost btn-small" id="msgResetAll">Вернуть всё стандартное</button>
+          </div>
+          <div class="adm-sub" style="margin-top:6px;">«Отправить пример мне» шлёт пример получателям с отметкой «Служебные» (раздел Telegram), в том числе несохранённый вариант. Настоящие перемещения для этого не создаются.</div>
+        </div>
+        <div class="msg-prev">
+          <div class="adm-sub" style="margin-bottom:6px;">Так это увидят в Telegram <span id="msgPrevState"></span></div>
+          <div id="msgPrevBox"></div>
+        </div>
+      </div>
+    </div>`;
+  const $ = id => document.getElementById(id);
+  const qa = sel => [...body.querySelectorAll(sel)];
+  // подпись: пример и сохранение
+  const ftNow = () => ({ on: $('msgFtOn').checked, text: $('msgFtText').value, gap: Number($('msgFtGap').value) });
+  const ftDraw = () => { const f = ftNow(); const el = $('msgFtPrev'); tgHtmlInto_(el, '…текст сообщения…' + (f.on && f.text.trim() ? new Array(f.gap + 2).join('\n') + escapeHtml(f.text.trim()) : '')); msgFooterDraft = f; };
+  ['msgFtOn', 'msgFtText', 'msgFtGap'].forEach(id => $(id).addEventListener('input', () => { ftDraw(); msgPrevLater(); }));
+  $('msgFtGap').addEventListener('change', () => { ftDraw(); msgPrevLater(); });
+  ftDraw(); msgFooterDraft = null;
+  $('msgFtSave').addEventListener('click', async e => {
+    const btn = e.currentTarget; btn.disabled = true;
+    try { const r = await adminCall(Object.assign({ action: 'admin_tpl_footer' }, ftNow())); msgSt = r; msgFooterDraft = null; showToast('Подпись сохранена'); }
+    catch(err) { showToast(err.message || 'Не удалось сохранить'); }
+    drawMessages(body);
+  });
+  // выбор вида сообщения
+  qa('[data-msg-kind]').forEach(b => b.addEventListener('click', () => { msgKind = b.dataset.msgKind; drawMessages(body); }));
+  // правка полей
+  qa('[data-msg-ta]').forEach(ta => ta.addEventListener('input', () => {
+    d.fields[ta.dataset.msgTa] = ta.value;
+    const fld = k.fields.find(f => f.key === ta.dataset.msgTa);
+    const box = ta.closest('.msg-field');
+    const mod = ta.value !== fld.def;
+    const btn = box.querySelector('[data-msg-fdef]'); if(btn) btn.disabled = !mod;
+    const lab = box.querySelector('.msg-mod');
+    if(mod && !lab){ const s = document.createElement('span'); s.className = 'msg-mod'; s.textContent = 'изменено'; box.querySelector('.msg-flabel b').after(' ', s); }
+    if(!mod && lab) lab.remove();
+    msgPrevLater();
+  }));
+  qa('[data-msg-ins]').forEach(b => b.addEventListener('click', () => {
+    const ta = body.querySelector(`[data-msg-ta="${CSS.escape(b.dataset.msgIns)}"]`);
+    const ins = '{' + b.dataset.msgTok + '}';
+    const a = ta.selectionStart === undefined ? ta.value.length : ta.selectionStart, z = ta.selectionEnd === undefined ? a : ta.selectionEnd;
+    ta.value = ta.value.slice(0, a) + ins + ta.value.slice(z);
+    ta.focus(); ta.selectionStart = ta.selectionEnd = a + ins.length;
+    ta.dispatchEvent(new Event('input'));
+  }));
+  qa('[data-msg-fdef]').forEach(b => b.addEventListener('click', () => {
+    const f = k.fields.find(x => x.key === b.dataset.msgFdef);
+    d.fields[f.key] = f.def;
+    drawMessages(body);
+  }));
+  $('msgKFooter').addEventListener('change', e => { d.footer = e.target.checked; msgPrevLater(); });
+  // предпросмотр
+  function payload_(){
+    const fields = {};
+    k.fields.forEach(f => { if(d.fields[f.key] !== undefined && d.fields[f.key] !== f.cur) fields[f.key] = d.fields[f.key]; });
+    return { kind: k.key, fields, footer: d.footer };
+  }
+  async function msgPrev(){
+    const my = ++msgPrevSeq, st = $('msgPrevState');
+    if(st) st.textContent = '· обновляю…';
+    let res = null, err = '';
+    try { res = await adminCall(Object.assign({ action: 'admin_tpl_preview' }, payload_(), { footerCfg: msgFooterDraft || { on: S.footer.on, text: S.footer.text, gap: S.footer.gap } })); }
+    catch(e) { err = e.message || 'Не удалось построить пример'; }
+    if(my !== msgPrevSeq || adminSection !== 'messages' || !$('msgPrevBox')) return;
+    const box = $('msgPrevBox');
+    if(st) st.textContent = err ? '' : '';
+    box.textContent = '';
+    if(err){ const p = document.createElement('div'); p.className = 'adm-sub'; p.style.color = 'var(--red)'; p.textContent = err; box.appendChild(p); return; }
+    res.previews.forEach(p => {
+      const lab = document.createElement('div'); lab.className = 'msg-plabel'; lab.textContent = p.label;
+      const wrap = document.createElement('div'); wrap.className = 'msg-bubble-wrap';
+      const bub = document.createElement('div'); bub.className = 'msg-bubble'; tgHtmlInto_(bub, p.html);
+      wrap.appendChild(bub); box.appendChild(lab); box.appendChild(wrap);
+    });
+  }
+  function msgPrevLater(){
+    clearTimeout(msgPrevTimer);
+    const st = $('msgPrevState'); if(st) st.textContent = '· изменено, обновлю через секунду';
+    msgPrevTimer = setTimeout(msgPrev, 1100);
+  }
+  msgPrev();
+  // сохранить / отправить пример / сбросить
+  $('msgSave').addEventListener('click', async e => {
+    const btn = e.currentTarget; btn.disabled = true;
+    try {
+      const r = await adminCall(Object.assign({ action: 'admin_tpl_save' }, payload_()));
+      msgSt = r; delete msgDraft[k.key]; msgErrMsg = '';
+      showToast('Сохранено — новый текст пойдёт со следующего сообщения');
+    } catch(err) { msgErrMsg = err.message || 'Не удалось сохранить'; showToast(msgErrMsg); }
+    drawMessages(body);
+  });
+  $('msgTest').addEventListener('click', async e => {
+    const btn = e.currentTarget; btn.disabled = true;
+    try { const r = await adminCall(Object.assign({ action: 'admin_tpl_test' }, payload_(), { footerCfg: msgFooterDraft || { on: S.footer.on, text: S.footer.text, gap: S.footer.gap } })); showToast('Пример отправлен: сообщений ' + (r.sent || 0)); }
+    catch(err) { showToast(err.message || 'Не удалось отправить'); }
+    btn.disabled = false;
+  });
+  $('msgResetAll').addEventListener('click', async () => {
+    if(!confirm('Вернуть стандартные тексты для «' + k.title + '»? Сохранённые правки этого сообщения пропадут.')) return;
+    try { msgSt = await adminCall({ action: 'admin_tpl_reset', kind: k.key }); delete msgDraft[k.key]; msgErrMsg = ''; showToast('Возвращён стандартный текст'); }
+    catch(err) { showToast(err.message || 'Не удалось сбросить'); }
+    drawMessages(body);
+  });
+}
+
 // ---------- АДМИНКА: TELEGRAM ----------
 // Бот принимает «Старт» от сотрудников (они попадают в список «ждут подключения»), вы вписываете имя и
 // включаете. Новое перемещение приходит всем включённым, кнопка «Выполнил!» отмечает его в таблице
@@ -5197,6 +5416,7 @@ async function renderAdminTelegram(body){
       </div></div>`;
   }).join('') : `<div class="empty-state">Пока никого. ${s && s.bot ? 'Пусть сотрудники откроют бота и нажмут «Старт»:' : 'Сначала подключите бота.'}</div>`;
   const inviteHtml = s && s.bot ? `<div class="adm-sub" style="margin:8px 0;">Ссылка на бота для сотрудников: <b>https://t.me/${escapeHtml(s.bot)}</b> · группа: добавьте бота в группу и отправьте там <code>/start</code></div>` : '';
+  const msgHintHtml = '<div class="adm-sub" style="margin:8px 0;">✏️ Тексты сообщений бота и подпись со ссылкой меняются в разделе «Сообщения».</div>';
   const siteVal = (s && s.siteUrl) || tgSiteDefault();
   const rem = (s && s.reminders) || { enabled: false, hours: 0 };
   body.innerHTML = `
@@ -5218,7 +5438,7 @@ async function renderAdminTelegram(body){
     </div>
     <div class="card">
       <h2>Получатели <span>${recs.length}</span></h2>
-      ${inviteHtml}
+      ${inviteHtml}${msgHintHtml}
       <div class="adm-sub" style="line-height:1.55;margin:6px 0 10px;">Кому что приходит. <b>📦 Перемещения</b> — новые перемещения (товары), закреплённое табло «Сейчас», очередь и напоминания: это для кладовщиков. <b>🛠 Служебные</b> — вечерняя сводка (настраивается в разделе «Система»), запросы свежих остатков из 1С и предупреждения о сбоях: это для вас или руководителя. По умолчанию у всех отмечены «Перемещения», «Служебные» никому не приходят — отметьте себя. Если у человека снять «Перемещения», табло, которое уже закреплено у него в чате, останется как есть и перестанет обновляться; его можно удалить в Telegram вручную.</div>
       ${recHtml}
     </div>
