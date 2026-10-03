@@ -244,6 +244,13 @@
   }
   .disp-qr-btn:hover{border-color:var(--orange);color:var(--text);}
   .data-warn{margin:10px 0;padding:10px 12px;border-radius:8px;border:1px solid var(--red);background:rgba(255,90,90,.08);color:var(--text);font-size:13px;line-height:1.45;}
+  .cell-ac{position:fixed;z-index:400;display:none;background:var(--charcoal-800);border:1px solid var(--line);border-radius:10px;box-shadow:0 10px 30px rgba(0,0,0,.35);max-height:min(300px,40vh);overflow:auto;padding:4px;}
+  .cell-ac.show{display:block;}
+  .cell-ac .ac-item{display:flex;justify-content:space-between;gap:10px;align-items:baseline;padding:9px 10px;border-radius:7px;cursor:pointer;font-size:14px;color:var(--text);}
+  .cell-ac .ac-item b{font-family:ui-monospace,Menlo,Consolas,monospace;font-weight:600;}
+  .cell-ac .ac-item span{color:var(--text-dim);font-size:12px;text-align:right;}
+  .cell-ac .ac-item.active,.cell-ac .ac-item:hover{background:var(--orange-dim);}
+  .cell-ac .ac-empty{padding:9px 10px;color:var(--text-dim);font-size:13px;}
   .cell-name[data-qr-cell]{cursor:pointer;text-decoration:underline dotted;text-underline-offset:3px;}
 
   .empty-state{
@@ -1571,6 +1578,99 @@ document.querySelectorAll('.tab-btn').forEach(btn=>{
 // фоновое автообновление раз в 20 секунд, пока вкладка открыта
 setInterval(()=>{ if(document.visibilityState === 'visible') loadState(true); }, 20000);
 
+// ---------- автозаполнение ячеек (подсказки при вводе) ----------
+// Работает на всех полях ячейки (list="cellsList"), в том числе созданных позже: слушаем документ.
+// Подходят и коды (A-1-2-1-1, можно вводить без дефисов: a121), и названия («Куча», «Золотая ячейка»).
+const cellAc = { el: null, input: null, items: [], active: -1 };
+function cellAcItems(q){
+  const norm = x => String(x).toLowerCase().replace(/[\s\-_.]+/g, '');
+  const nq = norm(q), lq = String(q).trim().toLowerCase();
+  const all = CELLS.map(c => ({ v: c, code: c, name: '' }));
+  Object.keys(OST_HIER).forEach(n => { const code = cellCode(n); if(code !== n) all.push({ v: n, code, name: n }); });
+  const out = [];
+  all.forEach(it => {
+    const hay1 = (it.code + ' ' + it.name).toLowerCase(), hay2 = norm(it.code + it.name);
+    let sc = -1;
+    if(!nq) sc = 2;
+    else if(it.code.toLowerCase().startsWith(lq) || it.name.toLowerCase().startsWith(lq)) sc = 0;
+    else if(norm(it.code).startsWith(nq)) sc = 0;
+    else if(hay1.includes(lq) || hay2.includes(nq)) sc = 1;
+    if(sc >= 0) out.push({ it, sc });
+  });
+  out.sort((a, b) => a.sc - b.sc || (a.it.code < b.it.code ? -1 : a.it.code > b.it.code ? 1 : 0));
+  return out.slice(0, 8).map(x => x.it);
+}
+function cellAcEnsure(){
+  if(cellAc.el) return cellAc.el;
+  const el = document.createElement('div');
+  el.className = 'cell-ac'; el.setAttribute('role', 'listbox');
+  el.addEventListener('pointerdown', e => {
+    const row = e.target.closest('.ac-item');
+    e.preventDefault();               // не терять фокус поля
+    if(row) cellAcPick(Number(row.dataset.i));
+  });
+  document.body.appendChild(el);
+  cellAc.el = el;
+  return el;
+}
+function cellAcHide(){ if(cellAc.el) cellAc.el.classList.remove('show'); cellAc.items = []; cellAc.active = -1; }
+function cellAcPlace(){
+  const inp = cellAc.input, el = cellAc.el;
+  if(!inp || !el) return;
+  const r = inp.getBoundingClientRect();
+  const w = Math.max(r.width, 240);
+  el.style.width = w + 'px';
+  el.style.left = Math.max(8, Math.min(r.left, window.innerWidth - w - 8)) + 'px';
+  const below = window.innerHeight - r.bottom, h = Math.min(el.scrollHeight, 300);
+  if(below < h + 12 && r.top > below){ el.style.top = ''; el.style.bottom = (window.innerHeight - r.top + 4) + 'px'; }
+  else { el.style.bottom = ''; el.style.top = (r.bottom + 4) + 'px'; }
+}
+function cellAcShow(inp){
+  cellAc.input = inp;
+  const q = inp.value.trim();
+  if(!q){ cellAcHide(); return; }
+  const items = cellAcItems(q);
+  const el = cellAcEnsure();
+  cellAc.items = items; cellAc.active = -1;
+  el.innerHTML = items.length
+    ? items.map((it, i) => `<div class="ac-item" role="option" data-i="${i}"><b>${escapeHtml(it.name || it.code)}</b>${it.name ? `<span>${escapeHtml(it.code)}</span>` : ''}</div>`).join('')
+    : `<div class="ac-empty">Такой ячейки нет в списке — можно ввести вручную</div>`;
+  el.classList.add('show');
+  cellAcPlace();
+}
+function cellAcPick(i){
+  const it = cellAc.items[i], inp = cellAc.input;
+  if(!it || !inp) return;
+  inp.value = it.v;
+  cellAcHide();
+  inp.dispatchEvent(new Event('input', { bubbles: true }));
+  inp.dispatchEvent(new Event('change', { bubbles: true }));
+}
+function isCellInput(t){ return t && t.tagName === 'INPUT' && (t.getAttribute('list') === 'cellsList' || t.dataset.cellAc === '1'); }
+document.addEventListener('focusin', e => {
+  const t = e.target;
+  if(!isCellInput(t)) return;
+  if(t.getAttribute('list')){ t.removeAttribute('list'); t.dataset.cellAc = '1'; t.setAttribute('autocomplete', 'off'); } // вместо встроенного datalist
+  cellAcShow(t);
+});
+document.addEventListener('input', e => { if(isCellInput(e.target)) cellAcShow(e.target); });
+document.addEventListener('focusout', e => { if(isCellInput(e.target)) setTimeout(cellAcHide, 120); });
+document.addEventListener('keydown', e => {
+  if(!cellAc.el || !cellAc.el.classList.contains('show') || !cellAc.items.length || e.target !== cellAc.input) return;
+  if(e.key === 'ArrowDown' || e.key === 'ArrowUp'){
+    e.preventDefault();
+    const n = cellAc.items.length;
+    let a = cellAc.active + (e.key === 'ArrowDown' ? 1 : -1);
+    if(a >= n) a = -1; else if(a < -1) a = n - 1;
+    cellAc.active = a;
+    cellAc.el.querySelectorAll('.ac-item').forEach((r, i) => r.classList.toggle('active', i === cellAc.active));
+  } else if(e.key === 'Enter' && cellAc.active >= 0){
+    e.preventDefault(); cellAcPick(cellAc.active);
+  } else if(e.key === 'Escape'){ cellAcHide(); }
+}, true);
+window.addEventListener('resize', cellAcHide);
+document.addEventListener('scroll', () => { if(cellAc.el && cellAc.el.classList.contains('show')) cellAcPlace(); }, true);
+
 // ---------- populate cells datalist ----------
 function initCellsList(){
   const dl = document.getElementById('cellsList');
@@ -1951,6 +2051,7 @@ document.getElementById('historySearch').addEventListener('input', debounce(rend
 // - строки с названием в колонке 3 — это товарные позиции этой ячейки;
 //   реальное количество лежит в ПОСЛЕДНЕЙ колонке строки (индекс 8 в проверенных данных)
 let lastParseNoName = 0;
+let OST_HIER = {};   // имя ячейки из выгрузки -> {sec, line}
 let ostatkiNoName = 0;
 function parseOstatkiRows(rows){
   // Колонки ищем по заголовкам выгрузки 1С ("Товар", "Ед. изм.", "Счет", "Статус",
@@ -1980,8 +2081,20 @@ function parseOstatkiRows(rows){
   let lastHeader = null;
   let needNewCell = true;
   let noName = 0;
+  // иерархия Секция -> Линия -> Ячейка: нужна, чтобы найти код ячейки без дефиса («Куча» = WW-1-1-1-1)
+  const hier = {};
+  let hdrRun = [], curSec = '', curLine = '';
   const pushItem = (row, article, nm, noN) => {
-    if (needNewCell) { currentCell = lastHeader; needNewCell = false; }
+    if (needNewCell) {
+      currentCell = lastHeader; needNewCell = false;
+      if (currentCell && hdrRun.length) {
+        const L = hdrRun.length;
+        if (L >= 3) { curSec = hdrRun[L - 3]; curLine = hdrRun[L - 2]; }
+        else if (L === 2) { curLine = hdrRun[0]; }
+        if (curSec && curLine && !hier[currentCell]) hier[currentCell] = { sec: curSec, line: curLine };
+      }
+      hdrRun = [];
+    }
     if (!currentCell) return; // товар до первого заголовка — пропускаем
     const qty = Number(col.qty >= 0 ? row[col.qty] : row[row.length - 1]);
     if (!byCell[currentCell]) byCell[currentCell] = [];
@@ -2007,10 +2120,11 @@ function parseOstatkiRows(rows){
       const qv = col.qty >= 0 ? row[col.qty] : NaN;
       const isArticle = /^\d{5,}$/.test(firstStr) && qv !== '' && qv != null && Number.isFinite(Number(qv)) && Number(qv) > 0;
       if (isArticle && (lastHeader || currentCell)) pushItem(row, firstStr, '', true);
-      else { lastHeader = firstStr; needNewCell = true; }
+      else { lastHeader = firstStr; needNewCell = true; hdrRun.push(firstStr); }
     }
   }
   lastParseNoName = noName;
+  OST_HIER = hier;
   return byCell;
 }
 
@@ -2614,7 +2728,7 @@ function renderCart(){
     inp.addEventListener('change', () => {
       const v = inp.value.trim();
       if(!v) return;
-      line.cell = v; delete line._typed;
+      line.cell = (CELLS.length ? (CELLS.find(c => c.toLowerCase() === v.toLowerCase()) || v) : v); delete line._typed;
       saveCart(); renderCart(); renderDisplay();
     });
   });
@@ -2647,7 +2761,7 @@ async function sendCart(){
     renderCart();
     return;
   }
-  const unknownCells = [...new Set(displayCart.map(l => l.cell))].filter(c => !CELLS.includes(c));
+  const unknownCells = [...new Set(displayCart.map(l => l.cell))].filter(c => !CELLS.includes(cellCode(c)));
   if(unknownCells.length && !confirm(`Ячеек нет в списке склада: ${unknownCells.join(', ')}. Всё равно создать перемещения?`)) return;
 
   displayCreating = true;
@@ -3668,6 +3782,29 @@ document.getElementById('refreshBtn').addEventListener('click', async ()=>{
 });
 
 // ---------- QR-коды ячеек ----------
+// Настоящий код ячейки по названию из выгрузки. Для «Куча» (секция WW, линия 1) это WW-1-1-1-1:
+// ищем в списке ячеек код, начинающийся с «СЕКЦИЯ-ЛИНИЯ-»; если такой один — он; иначе СЕКЦИЯ-ЛИНИЯ-1-1-1.
+// Если ничего не нашли — возвращаем название как есть (QR не будет найден, это честно).
+function cellCode(name){
+  const n = String(name == null ? '' : name).trim();
+  if(!n) return n;
+  if(QR_MAP[n] || CELLS.indexOf(n) !== -1) return n;
+  const low = n.toLowerCase();
+  const ci = CELLS.find(c => c.toLowerCase() === low);
+  if(ci) return ci;
+  let h = OST_HIER[n];
+  if(!h){ const k = Object.keys(OST_HIER).find(x => x.toLowerCase() === low); if(k) h = OST_HIER[k]; }
+  if(!h) return n;
+  const pre = (h.sec + '-' + h.line + '-').toLowerCase();
+  const cand = CELLS.filter(c => c.toLowerCase().indexOf(pre) === 0);
+  if(cand.length === 1) return cand[0];
+  const std = cand.find(c => c.toLowerCase() === pre + '1-1-1');
+  return std || n;
+}
+function cellTitleHtml(name){
+  const c = cellCode(name);
+  return c !== String(name).trim() ? `${escapeHtml(String(name).trim())} <span class="muted">· ${escapeHtml(c)}</span>` : escapeHtml(name);
+}
 let _c2q = null, _c2qSrc = null;
 function qrContentFor(code){
   if(_c2qSrc !== QR_CONTENT_TO_CELL){
@@ -3675,7 +3812,7 @@ function qrContentFor(code){
     Object.keys(QR_CONTENT_TO_CELL).forEach(q => { const c = QR_CONTENT_TO_CELL[q]; if(!_c2q[c]) _c2q[c] = q; });
     _c2qSrc = QR_CONTENT_TO_CELL;
   }
-  return _c2q[code] || '';
+  return _c2q[code] || _c2q[cellCode(code)] || '';
 }
 function qrMatrix(content){
   if(typeof qrcode !== 'function' || !content) return null;
@@ -3705,7 +3842,7 @@ function qrSvg(code){
 function qrPicHtml(code){
   const svg = qrSvg(code);
   if(svg) return svg;
-  const b64 = QR_MAP[code];
+  const b64 = QR_MAP[code] || QR_MAP[cellCode(code)];
   if(b64) return `<div class="qr-pic"><img src="data:image/png;base64,${b64}" alt="QR ${escapeAttr(code)}"></div>`;
   return '';
 }
@@ -3721,12 +3858,12 @@ function downloadQrPng(code){
   for(let r = 0; r < n; r++) for(let c = 0; c < n; c++) if(q.isDark(r, c)) g.fillRect((c + quiet) * scale, (r + quiet) * scale, scale, scale);
   g.textAlign = 'center'; g.textBaseline = 'middle';
   g.font = `bold ${Math.round(cap * 0.55)}px ui-monospace, Menlo, Consolas, monospace`;
-  g.fillText(code, px / 2, px + cap * 0.45);
+  g.fillText(cellCode(code), px / 2, px + cap * 0.45);
   cv.toBlob(blob => {
     if(!blob){ showToast('Не удалось создать PNG'); return; }
     const a = document.createElement('a');
     a.href = URL.createObjectURL(blob);
-    a.download = 'QR_' + code.replace(/[^\w.-]+/g, '_') + '.png';
+    a.download = 'QR_' + cellCode(code).replace(/[^\w.-]+/g, '_') + '.png';
     document.body.appendChild(a); a.click(); a.remove();
     setTimeout(() => URL.revokeObjectURL(a.href), 4000);
   }, 'image/png');
@@ -3743,7 +3880,7 @@ function showQrForCell(code){
     <div class="qr-box">
       <button type="button" class="qr-click" data-qr-cell="${escapeAttr(code)}" title="Нажмите, чтобы открыть крупно">${pic}</button>
       <div>
-        <div class="qr-code-label">${escapeHtml(code)}</div>
+        <div class="qr-code-label">${cellTitleHtml(code)}</div>
         <div class="muted" style="margin-top:4px;">Нажмите на QR, чтобы открыть крупно. Сверьте с наклейкой на стеллаже перед использованием.</div>
       </div>
     </div>`;
@@ -3764,7 +3901,7 @@ function openQrModal(code, big){
     content.innerHTML = `
       <div style="text-align:center;">
         <button type="button" class="qr-click" id="qrZoom" title="Нажмите, чтобы увеличить">${pic}</button>
-        <div class="qr-code-label" style="margin-top:12px;font-size:18px;">${escapeHtml(code)}</div>
+        <div class="qr-code-label" style="margin-top:12px;font-size:18px;">${cellTitleHtml(code)}</div>
         <div class="muted" style="margin-top:4px;">Нажмите на QR, чтобы увеличить. Сверьте с наклейкой на стеллаже.</div>
         <div class="qr-actions"><button type="button" class="btn btn-ghost btn-small" id="qrDl">Скачать PNG</button></div>
       </div>`;
