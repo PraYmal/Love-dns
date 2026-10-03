@@ -1336,6 +1336,98 @@ function doneAfter(t, ms){
   return Number.isFinite(c) ? c > ms : true;
 }
 
+// ---------- кэш больших выгрузок (IndexedDB) ----------
+// ostatki / vitrina / cells весят по 1–2 МБ, а раньше качались заново при каждом переходе между вкладками.
+// Хранилище — IndexedDB, а не localStorage: у localStorage общий лимит около 5 МБ, и когда он выбран, перестают
+// сохраняться корзина и выбор сотрудника. Одна запись на лист (новая версия заменяет старую), так что место не растёт.
+// Запись считается годной только если её штамп (время последней загрузки выгрузки в админке) совпал с серверным —
+// именно по этому штампу уже считается «что учитывать в прогнозе». Любая ошибка хранилища (приватный режим, нет места,
+// старый браузер) = работаем без кэша, как раньше.
+const SC_DB = 'wt-sheet-cache', SC_STORE = 'sheets';
+const SC_TTL_MS = 2 * 3600 * 1000;      // даже при совпавшем штампе раз в 2 часа сверяемся с таблицей (ручные правки листа)
+const SC_MAX_CELLS = 4000000;           // слишком большие листы в кэш не кладём
+const SC_TIMEOUT_MS = 2500;             // если хранилище «зависло» — идём в сеть
+let scDbP = null, scOpened = false, scDead = false;   // scDead: хранилище недоступно или «зависло» — дальше без кэша, не тратя время на ожидание
+function scOpen(){
+  if(scDbP) return scDbP;
+  scDbP = new Promise(resolve => {
+    try{
+      if(!window.indexedDB) return resolve(null);
+      const rq = indexedDB.open(SC_DB, 1);
+      rq.onupgradeneeded = () => { try{ rq.result.createObjectStore(SC_STORE); }catch(e){} };
+      rq.onsuccess = () => {
+        const db = rq.result;
+        scOpened = true;
+        db.onversionchange = () => { try{ db.close(); }catch(e){} scDbP = null; scOpened = false; };
+        resolve(db);
+      };
+      rq.onerror = () => resolve(null);
+      rq.onblocked = () => resolve(null);
+    }catch(e){ resolve(null); }
+  });
+  return scDbP;
+}
+// -> Promise<{v}|null>; null = хранилище недоступно, не ответило за SC_TIMEOUT_MS или операция не удалась
+function scTx(mode, fn){
+  if(scDead) return Promise.resolve(null);
+  return new Promise(resolve => {
+    let done = false;
+    const finish = v => { if(!done){ done = true; clearTimeout(timer); resolve(v); } };
+    const timer = setTimeout(() => { if(!scOpened) scDead = true; finish(null); }, SC_TIMEOUT_MS);
+    scOpen().then(db => {
+      if(!db){ scDead = true; return finish(null); }
+      try{
+        const tx = db.transaction(SC_STORE, mode);
+        const rq = fn(tx.objectStore(SC_STORE));
+        let out = null;
+        if(rq) rq.onsuccess = () => { out = rq.result === undefined ? null : rq.result; };
+        tx.oncomplete = () => finish({ v: out });
+        tx.onerror = () => finish(null);
+        tx.onabort = () => finish(null);
+      }catch(e){ finish(null); }
+    }).catch(() => finish(null));
+  });
+}
+function scGet(name){ return scTx('readonly', st => st.get(name)).then(r => (r && r.v) || null); }
+function scDel(name){ return scTx('readwrite', st => st.delete(name)).then(r => !!r); }
+function scPut(name, at, rows){
+  try{
+    if(!at || !Array.isArray(rows) || !rows.length) return scDel(name);
+    let w = 1; for(let i = 0; i < Math.min(rows.length, 20); i++) w = Math.max(w, (rows[i] && rows[i].length) || 0);
+    if(rows.length * w > SC_MAX_CELLS) return scDel(name);
+  }catch(e){ return Promise.resolve(false); }
+  return scTx('readwrite', st => st.put({ at, rows, savedAt: Date.now() }, name)).then(r => !!r);
+}
+
+const sheetMem = {};        // лист -> { at, t }: какая версия выгрузки уже разобрана в памяти и когда она получена
+const sheetInflight = {};   // лист -> Promise: одновременные вызовы ждут один и тот же запрос
+function sheetAt(name){ return (appSettings && appSettings[name + '_uploaded_at']) || ''; }
+function sheetMemFresh(name, force){
+  const m = sheetMem[name], at = sheetAt(name);
+  return !force && !!at && !!m && m.at === at && Date.now() - m.t < SC_TTL_MS;
+}
+// строки листа: из кэша (если штамп совпал и запись не старая) либо с сервера. Ничего не пишет в кэш — это делает sheetStore_
+async function loadSheetRows(name, force){
+  const at = sheetAt(name);
+  if(!force && at){
+    const c = await scGet(name);
+    if(c && c.at === at && Array.isArray(c.rows) && c.rows.length && Date.now() - (c.savedAt || 0) < SC_TTL_MS) return { rows: c.rows, at, cached: true, t: c.savedAt };
+  }
+  const res = await fetch(`${APPS_SCRIPT_URL}?data=${name}`);
+  if(!res.ok) throw new Error('HTTP ' + res.status);
+  const payload = await res.json();
+  if(payload && payload.error) throw new Error(payload.error);
+  return { rows: payload.rows || [], at, cached: false, t: Date.now() };
+}
+// кладём в кэш только то, что успешно разобрано
+function sheetStore_(name, r){ if(!r.cached) scPut(name, r.at, r.rows); }
+function dedupeLoad(name, force, run){
+  if(!force && sheetInflight[name]) return sheetInflight[name];
+  const p = run().finally(() => { if(sheetInflight[name] === p) delete sheetInflight[name]; });
+  sheetInflight[name] = p;
+  return p;
+}
+
 // загрузка списка сотрудников и настроек с сервера
 async function fetchConfig(){
   if(!isConfigured()) return;
@@ -1694,7 +1786,7 @@ document.querySelectorAll('.tab-btn').forEach(btn=>{
     }
     if(btn.dataset.tab === 'admin'){
       renderAdmin();
-      if(adminPassword){ await Promise.all([loadState(true), fetchConfig(), fetchOstatki(), fetchVitrina()]); renderAdmin(); }
+      if(adminPassword){ await fetchConfig(); await Promise.all([loadState(true), fetchOstatki(true), fetchVitrina(true)]); renderAdmin(); }
     }
     if(btn.dataset.tab === 'display'){
       renderDisplay();
@@ -1706,12 +1798,35 @@ document.querySelectorAll('.tab-btn').forEach(btn=>{
 
 document.getElementById('admGear').addEventListener('click', () => document.querySelector('.tab-btn[data-tab="admin"]').click());
 // фоновое автообновление раз в 20 секунд, пока вкладка открыта
+// Опрос по «версии»: лёгкий запрос ?data=ver (несколько байт). Весь список перемещений скачиваем, только если версия изменилась.
+let lastVer = null;
+let stampTry = 0;
+function stampsChanged(sv){
+  if(!appSettings || !Object.keys(appSettings).length) return false; // настройки ещё не загружены — их и так загрузит запуск страницы
+  return ['ostatki', 'vitrina', 'cells'].some(k => String(sv[k] || '') !== String((appSettings && appSettings[k + '_uploaded_at']) || ''));
+}
+async function checkVersion(force){
+  if(!isConfigured()) return;
+  try{
+    const res = await fetch(APPS_SCRIPT_URL + '?data=ver', { method: 'GET', cache: 'no-store' });
+    const j = await res.json();
+    if(j && j.s && stampsChanged(j.s) && Date.now() - stampTry > 60000){ // кто-то загрузил новую выгрузку: подтягиваем настройки и листы
+      stampTry = Date.now();
+      Promise.resolve(fetchConfig()).then(() => Promise.all([fetchOstatki(), fetchVitrina()])).catch(() => {});
+    }
+    if(j && j.v){
+      if(j.v === lastVer && !force) return;
+      lastVer = j.v;
+    }
+  }catch(e){ /* нет связи или старый сервер без ?data=ver: просто грузим список */ }
+  loadState(true);
+}
 (function pollLoop(){
-  const ms = () => { const a = document.querySelector('.tab-btn.active'); return a && (a.dataset.tab === 'tasks' || a.dataset.tab === 'display') ? (a.dataset.tab === 'tasks' ? 5000 : 8000) : 20000; };
-  const tick = () => { if(document.visibilityState === 'visible') loadState(true); setTimeout(tick, ms()); };
+  const ms = () => { const a = document.querySelector('.tab-btn.active'); return a && (a.dataset.tab === 'tasks' || a.dataset.tab === 'display') ? (a.dataset.tab === 'tasks' ? 3000 : 5000) : 15000; };
+  const tick = () => { if(document.visibilityState === 'visible') checkVersion(false); setTimeout(tick, ms()); };
   setTimeout(tick, ms());
-  document.addEventListener('visibilitychange', () => { if(document.visibilityState === 'visible') loadState(true); });
-  window.addEventListener('focus', () => loadState(true));
+  document.addEventListener('visibilitychange', () => { if(document.visibilityState === 'visible') checkVersion(true); });
+  window.addEventListener('focus', () => checkVersion(true));
 })();
 
 // ---------- автозаполнение ячеек (подсказки при вводе) ----------
@@ -1926,16 +2041,18 @@ async function completeMany(ids){
   repaintNow();
   opsInFlight++;
   let ok = false;
+  // Telegram обновляется параллельно с записью в таблицу: сервер знает, что эти перемещения уже выполнены
+  fireAndForget({ action: 'tg_sync', items: ids.map(id => ({ id, status: 'done' })) });
   try{
     await apiPost(ids.length === 1 ? { action: 'complete', id: ids[0], completedAt: when, deferTg: true } : { action: 'complete_many', ids, completedAt: when, deferTg: true });
     ok = true;
-    fireAndForget({ action: 'tg_sync', items: ids.map(id => ({ id, status: 'done' })) });
     showToast(ids.length > 1 ? 'Выполнено: ' + ids.length : 'Перемещение завершено, остатки обновлены');
     vibrateOk();
     scheduleProjectionSync();
   }catch(e){
     state.transfers.forEach(t => { const sn = snap.find(x => x.id === t.id); if(sn){ t.status = sn.status; t.completedAt = sn.completedAt; } });
     repaintNow();
+    fireAndForget({ action: 'tg_sync', items: [] }); // Telegram: свериться с таблицей
     showToast('Не удалось завершить. Проверьте подключение.');
   }finally{ opsInFlight--; }
   lastRowsRaw = null; loadState(true);
@@ -1954,14 +2071,16 @@ async function cancelMany(ids){
   repaintNow();
   opsInFlight++;
   const okIds = [];
+  fireAndForget({ action: 'tg_sync', items: snaps }); // Telegram обновляется параллельно с таблицей (по снимку, лист ему не нужен)
   try{
-    for(const id of ids){ await apiPost({ action: 'cancel', id, deferTg: true }); okIds.push(id); }
-    fireAndForget({ action: 'tg_sync', items: snaps });
+    const results = await Promise.allSettled(ids.map(id => apiPost({ action: 'cancel', id, deferTg: true })));
+    results.forEach((r, i) => { if(r.status === 'fulfilled') okIds.push(ids[i]); });
+    if(okIds.length !== ids.length) throw new Error('not all cancelled');
     showToast(ids.length > 1 ? 'Отменено: ' + ids.length : 'Перемещение отменено');
   }catch(e){
     const back = removed.filter(t => !okIds.includes(t.id));
     state.transfers = state.transfers.concat(back);
-    if(okIds.length) fireAndForget({ action: 'tg_sync', items: snaps.filter(x => okIds.includes(x.id)) });
+    fireAndForget({ action: 'tg_sync', items: [] }); // Telegram: свериться с таблицей
     repaintNow();
     showToast('Не удалось отменить. Проверьте подключение.');
   }finally{ opsInFlight--; }
@@ -1980,8 +2099,7 @@ async function deferMany(ids){
   repaintNow();
   opsInFlight++;
   try{
-    await apiPost({ action: 'defer', ids, deferTg: true });
-    fireAndForget({ action: 'tg_sync', items: [] }); // обновить закреплённое «Сейчас» в Telegram
+    await apiPost({ action: 'defer', ids }); // одним запросом: сервер сам обновит закреплённое «Сейчас» в Telegram
     showToast('Отложено — в конец очереди');
   }catch(e){
     prev.forEach(p => { const t = state.transfers.find(x => x.id === p.id); if(t) t.deferredAt = p.d; });
@@ -2377,19 +2495,26 @@ function parseOstatkiRows(rows){
 }
 
 let ostatkiLoadError = null;
-async function fetchOstatki(){
+// force = true: пропустить кэш и скачать лист заново (кнопка «Обновить», вход в админку, после загрузки выгрузки)
+function fetchOstatki(force){ return dedupeLoad('ostatki', force, () => fetchOstatkiRun(force)); }
+async function fetchOstatkiRun(force){
   if (!isConfigured()) return;
+  if (sheetMemFresh('ostatki', force) && !ostatkiLoadError) { // эта версия выгрузки уже разобрана — сеть не нужна
+    renderInventory();
+    renderDisplay();
+    return;
+  }
   try {
-    const res = await fetch(`${APPS_SCRIPT_URL}?data=ostatki`);
-    if (!res.ok) throw new Error('HTTP ' + res.status);
-    const payload = await res.json();
-    if (payload && payload.error) throw new Error(payload.error);
-    state.ostatki = parseOstatkiRows(payload.rows || []);
+    const r = await loadSheetRows('ostatki', force);
+    state.ostatki = parseOstatkiRows(r.rows);
     ostatkiNoName = lastParseNoName;
     ostatkiLoadError = null;
+    sheetMem.ostatki = { at: r.at, t: r.t };
+    sheetStore_('ostatki', r);
   } catch(e) {
     ostatkiLoadError = e.message || 'неизвестная ошибка';
     state.ostatki = state.ostatki || {};
+    delete sheetMem.ostatki;
   }
   renderInventory();
   renderDisplay();
@@ -2596,19 +2721,26 @@ function parseVitrinaRows(rows){
   return items;
 }
 
-async function fetchVitrina(){
+function fetchVitrina(force){ return dedupeLoad('vitrina', force, () => fetchVitrinaRun(force)); }
+async function fetchVitrinaRun(force){
   if(!isConfigured()) return;
+  if(sheetMemFresh('vitrina', force) && vitrinaLoaded && !vitrinaLoadError){ // версия уже разобрана; пересчитываем только список с учётом переносов
+    rebuildVitrinaItems();
+    renderDisplay();
+    if(typeof renderHistory === 'function') renderHistory();
+    return;
+  }
   try{
-    const res = await fetch(`${APPS_SCRIPT_URL}?data=vitrina`);
-    if(!res.ok) throw new Error('HTTP ' + res.status);
-    const payload = await res.json();
-    if(payload && payload.error) throw new Error(payload.error);
-    vitrinaRaw = parseVitrinaRows(payload.rows || []);
+    const r = await loadSheetRows('vitrina', force);
+    vitrinaRaw = parseVitrinaRows(r.rows);
     vitrinaLoadError = null;
     vitrinaLoaded = true;
+    sheetMem.vitrina = { at: r.at, t: r.t };
+    sheetStore_('vitrina', r);
     rebuildVitrinaItems();
   }catch(e){
     vitrinaLoadError = e.message || 'неизвестная ошибка';
+    delete sheetMem.vitrina;
   }
   renderDisplay();
   if(typeof renderHistory === 'function') renderHistory();
@@ -3088,9 +3220,11 @@ async function sendCart(){
         employee: selectedEmployee
       };
       opsInFlight++;
-      try{ await apiPost(Object.assign({ action: 'add', deferNotify: true }, tr)); } finally { opsInFlight--; }
-      // уведомление в Telegram — отдельным запросом, страница его не ждёт
+      // уведомление в Telegram уходит одновременно с записью в таблицу, страница его не ждёт
       fireAndForget(Object.assign({ action: 'notify' }, tr));
+      try{ await apiPost(Object.assign({ action: 'add', deferNotify: true }, tr)); }
+      catch(addErr){ fireAndForget({ action: 'tg_sync', items: [] }); throw addErr; }
+      finally { opsInFlight--; }
       state.transfers.unshift({ id: tr.id, createdAt: tr.createdAt, sourceCell: cell, destCell: DISPLAY_CELL, status: 'pending', completedAt: null, completedBy: '', employee: selectedEmployee, deferredAt: 0, articles: tr.articles.map(a => ({ article: a.article, qty: a.qty })) });
       sent++;
       const ids = new Set(lines.map(l => l.id));
@@ -3174,7 +3308,8 @@ document.getElementById('adminLoginForm').addEventListener('submit', async (e)=>
       try { sessionStorage.setItem('wt_admin_pw', pw); } catch(e) {}
       document.getElementById('adminPwInput').value = '';
       renderAdmin();
-      await Promise.all([loadState(true), fetchConfig(), fetchOstatki(), fetchVitrina()]);
+      await fetchConfig();
+      await Promise.all([loadState(true), fetchOstatki(true), fetchVitrina(true)]);
       renderAdmin();
     } else {
       err.textContent = (r && r.error) || 'Не удалось войти';
@@ -3593,20 +3728,31 @@ async function loadCellsIfNeeded(){
   const at = appSettings && appSettings.cells_uploaded_at;
   if(!at || !isConfigured() || cellsLoadedFor === at) return;
   try{
-    let rows = null;
-    try {
-      const c = JSON.parse(localStorage.getItem(CELLS_CACHE_KEY) || 'null');
-      if(c && c.at === at && Array.isArray(c.rows)) rows = c.rows;
-    } catch(e) {}
+    let rows = null, store = false;
+    const c = await scGet('cells');
+    if(c && c.at === at && Array.isArray(c.rows) && c.rows.length) rows = c.rows;
+    if(!rows){ // прежний кэш в localStorage (до версии 28): подхватываем и переносим в IndexedDB
+      try {
+        const old = JSON.parse(localStorage.getItem(CELLS_CACHE_KEY) || 'null');
+        if(old && old.at === at && Array.isArray(old.rows) && old.rows.length){ rows = old.rows; store = true; }
+      } catch(e) {}
+    }
     if(!rows){
       const res = await fetch(`${APPS_SCRIPT_URL}?data=cells`);
       if(!res.ok) throw new Error('HTTP ' + res.status);
       const payload = await res.json();
       if(payload && payload.error) throw new Error(payload.error);
       rows = payload.rows || [];
-      try { localStorage.setItem(CELLS_CACHE_KEY, JSON.stringify({ at, rows })); } catch(e) { /* кэш не поместился — не страшно */ }
+      store = true;
     }
-    if(applyCells(rows)) cellsLoadedFor = at;
+    if(applyCells(rows)){
+      cellsLoadedFor = at;
+      if(store){
+        // localStorage освобождаем, только когда копия точно легла в IndexedDB: общий лимит там нужен корзине и выбору сотрудника
+        const ok = await scPut('cells', at, rows);
+        if(ok){ try { localStorage.removeItem(CELLS_CACHE_KEY); } catch(e) {} }
+      }
+    }
   }catch(e){ /* остаёмся на встроенном наборе */ }
 }
 
@@ -3735,7 +3881,9 @@ function analyzeUpload(sheet, rows){
   const warnings = [];
   let summary = '';
   if(sheet === 'ostatki'){
+    const keepHier = OST_HIER, keepNoName = lastParseNoName; // разбор файла-кандидата меняет глобальные OST_HIER / lastParseNoName — возвращаем как было
     const by = parseOstatkiRows(rows);
+    OST_HIER = keepHier; lastParseNoName = keepNoName;
     const cells = Object.keys(by).length;
     const items = Object.values(by).reduce((a,l) => a + l.length, 0);
     const noQty = Object.values(by).reduce((a,l) => a + l.filter(i => i.qty === null).length, 0);
@@ -3903,8 +4051,8 @@ function renderAdminData(body){
       if(prog) prog.textContent = 'Готово, обновляю данные…';
       lastRowsRaw = null;
       await fetchConfig();
-      await Promise.all([sheet === 'ostatki' ? fetchOstatki() : Promise.resolve(), sheet === 'vitrina' ? fetchVitrina() : Promise.resolve(), loadState(true)]);
-      if(sheet === 'cells'){ try { localStorage.removeItem(CELLS_CACHE_KEY); } catch(e) {} cellsLoadedFor = null; await loadCellsIfNeeded(); }
+      await Promise.all([sheet === 'ostatki' ? fetchOstatki(true) : Promise.resolve(), sheet === 'vitrina' ? fetchVitrina(true) : Promise.resolve(), loadState(true)]);
+      if(sheet === 'cells'){ try { localStorage.removeItem(CELLS_CACHE_KEY); } catch(e) {} await scDel('cells'); cellsLoadedFor = null; await loadCellsIfNeeded(); }
       const uc = uploadChecks[sheet];
       showToast(uc && uc.ok ? 'Данные загружены и проверены' : 'Данные загружены, но проверка нашла расхождения — см. раздел «Данные»');
     }catch(e){
@@ -4156,7 +4304,7 @@ async function renderAdminTelegram(body){
     <div class="card">
       <h2>Ускорение нажатий из Telegram</h2>
       <div class="adm-sub" style="line-height:1.55;margin:-4px 0 10px;">
-        Apps Script отвечает Telegram перенаправлением (код 302), поэтому Telegram считает доставку неудачной и может повторять её с задержками. Необязательное ускорение: небольшой прокси (бесплатный Cloudflare Worker) сразу отвечает Telegram «ок» и передаёт запрос в Apps Script. Я не мог проверить это на вашем аккаунте — после включения нажмите «Выполнил!» и посмотрите, стало ли быстрее; вернуть как было можно очисткой поля.
+        Apps Script отвечает Telegram перенаправлением (код 302), и Telegram может повторять доставку с задержками. Небольшой прокси (бесплатный Cloudflare Worker) сразу отвечает Telegram «ок» и передаёт запрос в Apps Script. Адрес прокси подставляется сам и сохраняется при повторном подключении бота. Чтобы вернуться к прямому подключению, очистите поле и нажмите «Применить».
       </div>
       <details class="help"><summary>Код для Cloudflare Worker и порядок действий</summary>
         <p>1) В Cloudflare: Workers &amp; Pages → Create → Worker → вставьте код ниже → Deploy. 2) В настройках Worker → Variables добавьте <code>SCRIPT_URL</code> = адрес вашего веб-приложения Apps Script (оканчивается на <code>/exec</code>). 3) Адрес Worker вставьте в поле ниже → «Применить».</p>
@@ -4171,7 +4319,7 @@ async function renderAdminTelegram(body){
 }</pre>
         <button type="button" class="btn btn-ghost btn-small" id="tgWorkerCopy">Скопировать код</button>
       </details>
-      <div class="adm-add"><input type="text" id="tgProxy" value="${escapeAttr((s && s.webhookBase) || '')}" placeholder="https://имя.аккаунт.workers.dev (пусто — без прокси)"><button type="button" class="btn btn-primary" id="tgProxySave">Применить</button></div>
+      <div class="adm-add"><input type="text" id="tgProxy" value="${escapeAttr((s && s.webhookBase) || '')}" placeholder="пусто — без прокси"><button type="button" class="btn btn-primary" id="tgProxySave">Применить</button></div>
     </div>
     <div class="card">
       <h2>Запасной вариант: ссылки «QR»</h2>
@@ -4299,6 +4447,7 @@ function render(){
 // ---------- manual refresh ----------
 document.getElementById('refreshBtn').addEventListener('click', async ()=>{
   await Promise.all([loadState(), fetchConfig()]);
+  await Promise.all([fetchOstatki(true), fetchVitrina(true)]); // кнопка «Обновить» = полная сверка с таблицей, кэш выгрузок пропускаем
   showToast('Данные обновлены');
 });
 
@@ -4501,9 +4650,10 @@ renderHistoryEmployeeFilter();
 renderStatsPeriodFilter();
 renderInitQtyStepper();
 loadState();
-Promise.resolve(fetchConfig()).then(() => cellsReady).catch(() => {}).then(handleQrParam);
-fetchOstatki();
-fetchVitrina();
+const startCfg = Promise.resolve(fetchConfig());
+startCfg.then(() => cellsReady).catch(() => {}).then(handleQrParam);
+// штампы выгрузок приходят вместе с настройками — по ним решаем, годится ли кэш; без настроек грузим как раньше
+startCfg.catch(() => {}).then(() => { fetchOstatki(); fetchVitrina(); });
 
 // ---------- v22: запоминаем вкладку и состояние сводки ----------
 (function(){
