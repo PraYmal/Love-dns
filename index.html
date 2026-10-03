@@ -572,6 +572,14 @@
   .task-cancel{background:none;border:none;color:var(--text-dim);text-decoration:underline;padding:12px 4px 2px;cursor:pointer;font-size:13px;}
   /* ===== v24: очередь «Сейчас», фильтры витрины в админке ===== */
   .task.now{border-left-color:var(--green);box-shadow:0 0 0 1px var(--green-dim), 0 6px 22px rgba(0,0,0,.25);background:var(--charcoal-800);}
+  .task.urgent{border-left-color:var(--red);}
+  .task-urg{display:inline-block;font-size:12.5px;font-weight:700;color:var(--red);background:var(--red-dim);border-radius:999px;padding:3px 11px;margin:0 6px 10px 0;}
+  .task-urgbtn{background:none;border:none;color:var(--text-dim);text-decoration:underline;padding:9px 4px;cursor:pointer;font-size:13px;}
+  .tag-urg{display:inline-block;font-size:11.5px;font-weight:700;color:var(--red);background:var(--red-dim);border-radius:999px;padding:1px 8px;white-space:nowrap;}
+  .urg-check{display:flex;gap:9px;align-items:flex-start;margin:10px 0;padding:10px 12px;border:1px solid var(--line);border-radius:10px;cursor:pointer;font-size:13.5px;line-height:1.4;}
+  .urg-check input{margin-top:2px;width:17px;height:17px;flex:none;}
+  .urg-check.on{border-color:var(--red);background:var(--red-dim);}
+  .stock-req{display:flex;gap:10px;align-items:center;justify-content:space-between;flex-wrap:wrap;margin:10px 0;padding:10px 12px;border:1px solid var(--line);border-radius:10px;}
   .task-now{display:inline-block;font-size:12.5px;font-weight:700;color:var(--green);background:var(--green-dim);border-radius:999px;padding:3px 11px;margin-bottom:10px;}
   .task-next{font-size:13px;font-weight:600;color:var(--text-dim);margin:18px 2px 8px;}
   .task-sub{display:flex;gap:10px;align-items:center;flex-wrap:wrap;margin-top:6px;}
@@ -676,6 +684,7 @@
     <div class="card">
       <h2>Текущие остатки по ячейкам</h2>
       <p class="muted" style="margin-top:-6px;">Источник — лист "ostatki" (ваша выгрузка из 1С), не история переносов в этом инструменте.</p>
+      <div class="stock-req" id="stockReq"></div>
       <div class="search-box" style="margin-top:12px;">
         <input type="text" id="invSearch" placeholder="Поиск по ячейке, артикулу или названию...">
       </div>
@@ -832,6 +841,7 @@
     </div>
     <p class="muted" style="margin:0 0 12px;">Каждая ячейка станет одним перемещением «ячейка → Витрина». Кладовщик увидит, что и откуда взять.</p>
     <div id="cartContent"></div>
+    <label class="urg-check" id="cartUrgentLbl"><input type="checkbox" id="cartUrgent"><span><b>🔥 Срочно</b><br><span class="muted" style="font-size:12.5px;">Задача встанет в начало очереди кладовщика, в Telegram придёт с пометкой «СРОЧНО».</span></span></label>
     <div id="cartEmployee" class="muted" style="margin:10px 0;font-size:12.5px;"></div>
     <div style="display:flex;gap:8px;flex-wrap:wrap;">
       <button type="button" class="btn btn-primary" id="cartSendBtn" style="flex:1;min-width:200px;">Отправить кладовщику</button>
@@ -1574,6 +1584,98 @@ async function apiPostStrict(payload){
   return r;
 }
 
+// ---------- v30: ЗАМЕРЫ ВРЕМЕНИ ЗАПРОСОВ (на этом устройстве) ----------
+// Каждый запрос страницы к Google-таблице записывается: сколько прошло до ответа и (если ответ маленький) сколько сервер считал внутри.
+// Разница = сеть + «холодный старт» Google. Данные лежат только в этом браузере (последние 300), никуда не отправляются.
+const PERF = { buf: [], dirty: 0, onAdd: null };
+try { PERF.buf = JSON.parse(localStorage.getItem('wt_perf') || '[]') || []; if(!Array.isArray(PERF.buf)) PERF.buf = []; } catch(e) { PERF.buf = []; }
+function perfSave_(){ try { localStorage.setItem('wt_perf', JSON.stringify(PERF.buf.slice(-300))); PERF.dirty = 0; } catch(e) {} }
+function perfAdd_(label, ms, srv, ok){
+  PERF.buf.push([Date.now(), label, Math.round(ms), (srv === null || srv === undefined) ? null : srv, ok ? 1 : 0]);
+  if(PERF.buf.length > 300) PERF.buf.splice(0, PERF.buf.length - 300);
+  if(++PERF.dirty >= 5) perfSave_();
+  if(PERF.onAdd){ try { PERF.onAdd(); } catch(e) {} }
+}
+window.addEventListener('pagehide', perfSave_);
+document.addEventListener('visibilitychange', () => { if(document.visibilityState === 'hidden') perfSave_(); });
+(function perfWrapFetch(){
+  if(typeof window.fetch !== 'function') return;
+  const orig = window.fetch.bind(window);
+  window.fetch = function(input, init){
+    let url = '';
+    try { url = typeof input === 'string' ? input : ((input && input.url) || ''); } catch(e) {}
+    if(!url || url.indexOf(APPS_SCRIPT_URL) !== 0) return orig(input, init);
+    let label = 'GET', small = false;
+    try {
+      const method = String((init && init.method) || 'GET').toUpperCase();
+      if(method === 'POST'){
+        const m = /"action"\s*:\s*"([a-z_]+)"/.exec(String((init && init.body) || '').slice(0, 400));
+        label = 'POST ' + (m ? m[1] : '?'); small = true;
+      } else {
+        const q = /[?&]data=([a-z_]+)/.exec(url);
+        label = 'GET ' + (q ? q[1] : 'state');
+        small = !!q && q[1] === 'ver';
+      }
+    } catch(e) {}
+    const t0 = performance.now();
+    return orig(input, init).then(res => {
+      const ms = performance.now() - t0;
+      if(small){
+        try { res.clone().text().then(t => { const m = /"ms":(\d+)\}\s*$/.exec(t.slice(-40)); perfAdd_(label, ms, m ? Number(m[1]) : null, res.ok); }, () => perfAdd_(label, ms, null, res.ok)); }
+        catch(e) { perfAdd_(label, ms, null, res.ok); }
+      } else perfAdd_(label, ms, null, res.ok);
+      return res;
+    }, err => { perfAdd_(label, performance.now() - t0, null, false); throw err; });
+  };
+})();
+function perfQ_(arr, p){
+  if(!arr.length) return null;
+  const s = arr.slice().sort((a, b) => a - b);
+  return s[Math.min(s.length - 1, Math.floor(p * (s.length - 1) + 0.5))];
+}
+function perfStats_(){
+  const by = {};
+  PERF.buf.forEach(r => {
+    const o = by[r[1]] = by[r[1]] || { label: r[1], ms: [], srv: [], fail: 0 };
+    o.ms.push(r[2]); if(r[3] !== null && r[3] !== undefined) o.srv.push(r[3]); if(!r[4]) o.fail++;
+  });
+  return Object.values(by).map(o => ({ label: o.label, n: o.ms.length, med: perfQ_(o.ms, 0.5), p90: perfQ_(o.ms, 0.9), max: Math.max.apply(null, o.ms), srvMed: perfQ_(o.srv, 0.5), fail: o.fail })).sort((a, b) => b.n - a.n);
+}
+function perfMs_(v){ return v === null || v === undefined ? '—' : (v >= 10000 ? (Math.round(v / 100) / 10) + ' с' : v + ' мс'); }
+function perfText_(){
+  const st = perfStats_();
+  const lines = ['Замеры запросов к таблице (это устройство), ' + PERF.buf.length + ' шт.'];
+  st.forEach(s => lines.push(`${s.label}: ${s.n} шт., медиана ${perfMs_(s.med)}, 90% ≤ ${perfMs_(s.p90)}, максимум ${perfMs_(s.max)}` + (s.srvMed !== null ? `, сервер внутри ${perfMs_(s.srvMed)}` : '') + (s.fail ? `, ошибок ${s.fail}` : '')));
+  return lines.join('\n');
+}
+// Небольшая панель для диагностики на телефоне кладовщика: откройте страницу с ?perf=1 (скрыть: ?perf=0)
+(function perfOverlay(){
+  let on = false;
+  try {
+    if(/[?&]perf=0\b/.test(location.search)) sessionStorage.removeItem('wt_perf_ui');
+    else if(/[?&]perf=1\b/.test(location.search)) sessionStorage.setItem('wt_perf_ui', '1');
+    on = sessionStorage.getItem('wt_perf_ui') === '1';
+  } catch(e) { on = /[?&]perf=1\b/.test(location.search); }
+  if(!on) return;
+  const box = document.createElement('div');
+  box.id = 'perfBox';
+  box.style.cssText = 'position:fixed;left:0;right:0;bottom:0;z-index:99999;max-height:34vh;overflow:auto;background:rgba(10,10,12,.93);color:#e8e8ea;font:11.5px/1.45 ui-monospace,Menlo,Consolas,monospace;padding:8px 10px;border-top:1px solid #555;';
+  const pre = document.createElement('pre'); pre.style.cssText = 'margin:0;white-space:pre-wrap;';
+  const bar = document.createElement('div'); bar.style.cssText = 'display:flex;gap:8px;margin-bottom:6px;';
+  const mk = (t, fn) => { const b = document.createElement('button'); b.type = 'button'; b.textContent = t; b.style.cssText = 'padding:3px 9px;font-size:12px;'; b.addEventListener('click', fn); bar.appendChild(b); };
+  mk('Скопировать', () => { try { navigator.clipboard.writeText(perfText_()); showToast('Скопировано'); } catch(e) { showToast('Не удалось скопировать'); } });
+  mk('Скрыть', () => { try { sessionStorage.removeItem('wt_perf_ui'); } catch(e) {} box.remove(); PERF.onAdd = null; });
+  box.appendChild(bar); box.appendChild(pre);
+  let tm = null;
+  const draw = () => {
+    const last = PERF.buf.slice(-8).reverse().map(r => `${new Date(r[0]).toTimeString().slice(0, 8)} ${r[1]} ${perfMs_(r[2])}${r[3] !== null ? ' (сервер ' + perfMs_(r[3]) + ')' : ''}${r[4] ? '' : ' ОШИБКА'}`);
+    pre.textContent = perfText_() + '\n— последние —\n' + last.join('\n');
+  };
+  PERF.onAdd = () => { clearTimeout(tm); tm = setTimeout(draw, 400); };
+  document.body.appendChild(box); draw();
+})();
+
+
 // Новая схема бэкенда: одна строка в таблице = один артикул одного перемещения,
 // строки одного перемещения объединены полем TransferId. Группируем их обратно
 // в объекты "перемещение" с массивом артикулов.
@@ -1593,9 +1695,11 @@ function rowsToState(rows){
         completedBy: r.CompletedBy || '',
         employee: r.Employee || '',
         deferredAt: Number(r.DeferredAt) || 0,
+        urgent: false,
         articles: []
       });
     }
+    if(String(r.Urgent || '') === '1') byId.get(tid).urgent = true;
     const qtyNum = Number(r.Quantity);
     byId.get(tid).articles.push({
       article: String(r.Article),
@@ -2331,7 +2435,9 @@ function taskAge_(iso){
 function queueOrder_(list){
   const byTime = (a, b) => new Date(a.createdAt) - new Date(b.createdAt);
   const byCell = (a, b) => String(cellCode(a.sourceCell)).localeCompare(String(cellCode(b.sourceCell)), 'en', { numeric: true }) || byTime(a, b);
-  const fresh = list.filter(t => !t.deferredAt).sort(QUEUE_ORDER === 'route' ? byCell : byTime);
+  const urgFirst = (a, b) => (b.urgent ? 1 : 0) - (a.urgent ? 1 : 0);
+  const base = QUEUE_ORDER === 'route' ? byCell : byTime;
+  const fresh = list.filter(t => !t.deferredAt).sort((a, b) => urgFirst(a, b) || base(a, b));
   const later = list.filter(t => t.deferredAt).sort((a, b) => a.deferredAt - b.deferredAt);
   return fresh.concat(later);
 }
@@ -2342,8 +2448,9 @@ function taskCardHtml_(g, names, staleMs, isNow, multi){
   const stale = Date.now() - new Date(g.oldest).getTime() > staleMs;
   const ids = g.trs.map(t => t.id).join(',');
   const code = cellCode(g.src);
-  return `<div class="task ${stale ? 'stale' : ''} ${isNow ? 'now' : ''}">
-      ${isNow ? '<div class="task-now">📌 Сейчас</div>' : ''}
+  const urgent = g.trs.some(t => t.urgent);
+  return `<div class="task ${stale ? 'stale' : ''} ${isNow ? 'now' : ''} ${urgent ? 'urgent' : ''}">
+      ${isNow ? '<div class="task-now">📌 Сейчас</div>' : ''}${urgent ? '<div class="task-urg">🔥 Срочно</div>' : ''}
       <div class="task-head">
         <button type="button" class="cell-tag" data-qr-cell="${escapeAttr(g.src)}">${escapeHtml(g.src)}</button>${code !== g.src ? `<span class="muted code">${escapeHtml(code)}</span>` : ''}
         <span class="arrow-inline">→</span>
@@ -2355,6 +2462,7 @@ function taskCardHtml_(g, names, staleMs, isNow, multi){
       <button type="button" class="task-done" data-task-done="${escapeAttr(ids)}">✅ Выполнено</button>
       <div class="task-sub">
         ${multi ? `<button type="button" class="task-later" data-task-later="${escapeAttr(ids)}">⏭ Позже</button>` : ''}
+        <button type="button" class="task-urgbtn" data-task-urg="${escapeAttr(ids)}" data-urg-to="${urgent ? '0' : '1'}">${urgent ? 'Снять «срочно»' : '🔥 Срочно'}</button>
         <button type="button" class="task-cancel" data-task-cancel="${escapeAttr(ids)}">Отменить</button>
       </div>
     </div>`;
@@ -2389,7 +2497,7 @@ function renderTasks(){
     sortWrap.innerHTML = [['queue','По очереди'],['cell','По ячейкам'],['old','Сначала старые']].map(([v,l]) => `<button type="button" class="employee-btn ${tasksSort === v ? 'selected' : ''}" data-tsort="${v}">${l}</button>`).join('');
     sortWrap.querySelectorAll('[data-tsort]').forEach(b => b.addEventListener('click', () => { tasksSort = b.dataset.tsort; tasksSig = null; renderTasks(); }));
   }
-  const sig = [tasksSort, q, QUEUE_ORDER, Object.keys(names).length, list.map(t => t.id + ':' + (t.deferredAt || 0)).join(',')].join('|');
+  const sig = [tasksSort, q, QUEUE_ORDER, Object.keys(names).length, list.map(t => t.id + ':' + (t.deferredAt || 0) + (t.urgent ? 'u' : '')).join(',')].join('|');
   if(sig === tasksSig) return;
   tasksSig = sig; tasksArmed = null;
   if(list.length === 0){
@@ -2406,6 +2514,7 @@ function renderTasks(){
   let rest = nowGroup ? arr.slice(1) : arr.slice();
   if(tasksSort === 'old') rest.sort((a,b) => new Date(a.oldest) - new Date(b.oldest));
   else if(tasksSort === 'cell') rest.sort((a,b) => String(cellCode(a.src)).localeCompare(String(cellCode(b.src)), 'en', { numeric: true }));
+  if(tasksSort !== 'queue') rest.sort((a, b) => (b.trs.some(t => t.urgent) ? 1 : 0) - (a.trs.some(t => t.urgent) ? 1 : 0));
   wrap.innerHTML = (nowGroup ? taskCardHtml_(nowGroup, names, staleMs, true, multi) : '')
     + (rest.length ? `<div class="task-next">Дальше · ${rest.length}</div>` + rest.map(g => taskCardHtml_(g, names, staleMs, false, multi)).join('') : '');
   wrap.querySelectorAll('[data-qr-cell]').forEach(b => b.addEventListener('click', () => openQrModal(b.dataset.qrCell)));
@@ -2423,6 +2532,17 @@ function renderTasks(){
     await completeMany(ids.split(','));
   }));
   wrap.querySelectorAll('[data-task-later]').forEach(b => b.addEventListener('click', async () => { tasksSig = null; await deferMany(b.dataset.taskLater.split(',')); }));
+  wrap.querySelectorAll('[data-task-urg]').forEach(b => b.addEventListener('click', async () => {
+    const ids = b.dataset.taskUrg.split(','), on = b.dataset.urgTo === '1';
+    b.disabled = true;
+    try{
+      await apiPostStrict({ action: 'set_urgent', ids, urgent: on });
+      (state.transfers || []).forEach(t => { if(ids.indexOf(t.id) !== -1 && t.status !== 'done') t.urgent = on; });
+      showToast(on ? 'Помечено как срочное' : 'Метка «срочно» снята');
+    }catch(e){ showToast(e.message || 'Не удалось изменить'); }
+    tasksSig = null; renderTasks();
+    loadState(true);
+  }));
   wrap.querySelectorAll('[data-task-cancel]').forEach(b => b.addEventListener('click', async () => {
     if(!confirm('Отменить эти перемещения?')) return;
     tasksSig = null;
@@ -2484,7 +2604,7 @@ function renderHistory(){
             <td data-label="Сотрудник">${escapeHtml(t.employee || '—')}</td>
             <td data-label="Маршрут"><button type="button" class="cell-tag" data-qr-cell="${escapeAttr(t.sourceCell)}">${escapeHtml(t.sourceCell)}</button><span class="arrow-inline">→</span><button type="button" class="cell-tag" data-qr-cell="${escapeAttr(t.destCell)}">${escapeHtml(t.destCell)}</button></td>
             <td data-label="Товары">${t.articles.map(a=>`<span class="sku">${escapeHtml(a.article)}</span><b class="qty-x">×${a.qty}</b>${names[a.article] ? escapeHtml(names[a.article].slice(0,50)) : ''}`).join('<br>')}${isDisplayDest(t.destCell) ? '<span class="badge-display">🛒 на витрину</span>' : ''}</td>
-            <td data-label="Статус"><span class="status-pill ${statusClass}">${statusLabel}</span></td>
+            <td data-label="Статус"><span class="status-pill ${statusClass}">${statusLabel}</span>${t.urgent && t.status === 'pending' ? ' <span class="tag-urg">🔥 срочно</span>' : ''}</td>
             <td data-label="Завершено">${fmtDate(t.completedAt)}${doneByHtml(t)}</td>
             <td>
               ${t.status==='pending'
@@ -2622,7 +2742,24 @@ async function fetchOstatkiRun(force){
   renderDisplay();
 }
 
+function renderStockReq_(){
+  const box = document.getElementById('stockReq');
+  if(!box) return;
+  const at = sheetAt('ostatki');
+  const ok = at && Number.isFinite(new Date(at).getTime());
+  box.innerHTML = `<div style="min-width:0;font-size:13.5px;"><b>Остатки из 1С</b><div class="adm-sub">${ok ? 'загружены ' + escapeHtml(fmtDate(at)) + ' · ' + escapeHtml(taskAge_(at)) : 'дата загрузки неизвестна'}</div></div>
+    <button type="button" class="btn btn-ghost btn-small" id="stockReqBtn">🔄 Запросить свежие остатки</button>`;
+  document.getElementById('stockReqBtn').addEventListener('click', async e => {
+    if(!selectedEmployee && !confirm('Сотрудник не выбран — запрос уйдёт без имени. Отправить?')) return;
+    if(selectedEmployee && !confirm('Отправить в Telegram просьбу выгрузить свежие остатки из 1С?')) return;
+    const btn = e.currentTarget; btn.disabled = true;
+    try{ const r = await apiPostStrict({ action: 'request_stock', employee: selectedEmployee || '' }); showToast('Запрос отправлен' + (r.sent ? ' (получателей: ' + r.sent + ')' : '')); }
+    catch(err){ showToast(err.message || 'Не удалось отправить запрос'); }
+    btn.disabled = false;
+  });
+}
 function renderInventory(){
+  renderStockReq_();
   fillOstatkiNames();
   const wrap = document.getElementById('inventoryWrap');
   const q = (document.getElementById('invSearch').value || '').toLowerCase().trim();
@@ -3361,6 +3498,7 @@ async function sendCart(){
         articles: Object.entries(byCode).map(([article, qty]) => ({ article, qty })),
         employee: selectedEmployee
       };
+      if(document.getElementById('cartUrgent').checked) tr.urgent = true;
       lastTr_ = tr;
       opsInFlight++;
       // уведомление в Telegram уходит одновременно с записью в таблицу, страница его не ждёт
@@ -3369,7 +3507,7 @@ async function sendCart(){
       try{ await apiPostStrict(Object.assign({ action: 'add', deferNotify: true }, tr)); }
       catch(addErr){ fireAndForget({ action: 'tg_sync', items: [] }); throw addErr; }
       finally { opsInFlight--; }
-      state.transfers.unshift({ id: tr.id, createdAt: tr.createdAt, sourceCell: cell, destCell: DISPLAY_CELL, status: 'pending', completedAt: null, completedBy: '', employee: selectedEmployee, deferredAt: 0, articles: tr.articles.map(a => ({ article: a.article, qty: a.qty })) });
+      state.transfers.unshift({ id: tr.id, createdAt: tr.createdAt, sourceCell: cell, destCell: DISPLAY_CELL, status: 'pending', completedAt: null, completedBy: '', employee: selectedEmployee, deferredAt: 0, urgent: !!tr.urgent, articles: tr.articles.map(a => ({ article: a.article, qty: a.qty })) });
       sent++;
       const ids = new Set(lines.map(l => l.id));
       displayCart = displayCart.filter(l => !ids.has(l.id));
@@ -3388,6 +3526,7 @@ async function sendCart(){
     }
   }
   displayCreating = false; btn.disabled = false;
+  if(failed === 0){ const cu = document.getElementById('cartUrgent'); if(cu){ cu.checked = false; document.getElementById('cartUrgentLbl').classList.remove('on'); } }
   repaintNow();
   loadState(true);
   if(failed === 0 && queued === 0){
@@ -3408,6 +3547,7 @@ document.getElementById('cartBarOpen').addEventListener('click', openCart);
 document.getElementById('cartClose').addEventListener('click', closeCart);
 document.getElementById('cartOverlay').addEventListener('click', e => { if(e.target.id === 'cartOverlay') closeCart(); });
 document.getElementById('cartSendBtn').addEventListener('click', sendCart);
+document.getElementById('cartUrgent').addEventListener('change', e => document.getElementById('cartUrgentLbl').classList.toggle('on', e.target.checked));
 document.getElementById('cartClearBtn').addEventListener('click', () => {
   if(!confirm('Очистить корзину?')) return;
   displayCart = []; saveCart(); renderCart(); renderDisplay();
@@ -3490,7 +3630,7 @@ function renderAdmin(){
   }
   loginWrap.style.display = 'none';
   mainWrap.style.display = 'block';
-  const sections = [['overview','Обзор'],['showcase','Витрина'],['data','Данные'],['report','Отчёт'],['analytics','Аналитика'],['diag','Проблемы'],['telegram','Telegram'],['employees','Сотрудники'],['transfers','Перемещения'],['audit','Журнал'],['settings','Настройки'],['password','Пароль']];
+  const sections = [['overview','Обзор'],['showcase','Витрина'],['data','Данные'],['report','Отчёт'],['analytics','Аналитика'],['diag','Проблемы'],['telegram','Telegram'],['employees','Сотрудники'],['transfers','Перемещения'],['audit','Журнал'],['system','Система'],['settings','Настройки'],['password','Пароль']];
   const nav = document.getElementById('adminSections');
   nav.innerHTML = sections.map(([id,label]) => `<button type="button" class="employee-btn ${adminSection === id ? 'selected' : ''}" data-adm-sec="${id}">${label}</button>`).join('');
   nav.querySelectorAll('[data-adm-sec]').forEach(b => b.addEventListener('click', () => { adminSection = b.dataset.admSec; renderAdmin(); }));
@@ -3504,6 +3644,7 @@ function renderAdmin(){
   else if(adminSection === 'report') renderAdminReport(body);
   else if(adminSection === 'analytics') renderAdminAnalytics(body);
   else if(adminSection === 'audit') renderAdminAudit(body);
+  else if(adminSection === 'system') renderAdminSystem(body);
   else if(adminSection === 'telegram') renderAdminTelegram(body);
   else if(adminSection === 'diag') renderAdminDiag(body);
   else renderAdminPassword(body);
@@ -3714,6 +3855,96 @@ function renderAdminEmployees(body){
   document.getElementById('admEmpNew').addEventListener('keydown', e => { if(e.key === 'Enter'){ e.preventDefault(); add(); } });
 }
 
+// ---------- v30: выгрузка истории перемещений в Excel ----------
+// Даты — настоящие даты Excel (их можно сортировать и фильтровать), артикулы — текст (не теряют ведущие нули),
+// количество и время выполнения — числа. Время берётся по часам этого устройства.
+let admExportArch = false;
+function xlSerial_(iso){
+  const d = new Date(iso);
+  if(!Number.isFinite(d.getTime())) return null;
+  return Date.UTC(d.getFullYear(), d.getMonth(), d.getDate(), d.getHours(), d.getMinutes(), d.getSeconds()) / 86400000 + 25569;
+}
+function admTrMatch_(t, q, status){
+  if(status && t.status !== status) return false;
+  if(!q) return true;
+  return String(t.sourceCell).toLowerCase().includes(q) || String(t.destCell).toLowerCase().includes(q) || String(t.employee || '').toLowerCase().includes(q) || t.articles.some(a => String(a.article).toLowerCase().includes(q));
+}
+// строки листа (в том числе архива) → перемещения того же вида, что в state.transfers
+function histGroup_(rows){
+  const by = new Map();
+  rows.forEach(r => {
+    const id = String(r.TransferId || '');
+    if(!id) return;
+    if(!by.has(id)) by.set(id, { id, createdAt: r.CreatedAt, sourceCell: String(r.SourceCell || ''), destCell: String(r.DestCell || ''), status: String(r.Status || ''), completedAt: r.CompletedAt || null, completedBy: String(r.CompletedBy || ''), employee: String(r.Employee || ''), urgent: false, articles: [] });
+    const t = by.get(id);
+    if(String(r.Urgent || '') === '1') t.urgent = true;
+    const n = Number(r.Quantity);
+    t.articles.push({ article: String(r.Article), qty: (Number.isFinite(n) && n > 0) ? n : 1 });
+  });
+  return [...by.values()];
+}
+async function exportHistoryXlsx_(){
+  const q = adminTransferQuery.toLowerCase().trim();
+  let list = (state.transfers || []).filter(t => admTrMatch_(t, q, adminTransferStatus)).map(t => ({ t, src: 'Основной лист' }));
+  let archN = 0;
+  if(admExportArch){
+    const r = await adminCall({ action: 'admin_export_history', withArchive: true });
+    const have = new Set((state.transfers || []).map(t => String(t.id)));
+    const extra = histGroup_(r.rows || []).filter(t => !have.has(t.id) && admTrMatch_(t, q, adminTransferStatus));
+    archN = extra.length;
+    list = list.concat(extra.map(t => ({ t, src: 'Архив' })));
+  }
+  if(!list.length) throw new Error('По текущему фильтру нечего выгружать');
+  await loadXlsx();
+  const names = articleNames();
+  list.sort((a, b) => (Date.parse(a.t.createdAt) || 0) - (Date.parse(b.t.createdAt) || 0));
+  const head = ['Номер перемещения', 'Создано', 'Завершено', 'Время выполнения, мин', 'Статус', 'Срочно', 'Сотрудник', 'Откуда', 'Куда', 'Артикул', 'Название', 'Кол-во, шт.', 'Выполнил', 'Где хранится'];
+  const rows = [head];
+  const durs = [];
+  let qty = 0, done = 0, pend = 0, urg = 0;
+  list.forEach(({ t, src }) => {
+    const c = xlSerial_(t.createdAt), d = t.status === 'done' ? xlSerial_(t.completedAt) : null;
+    const dur = (c !== null && d !== null && d >= c) ? Math.round((d - c) * 1440) : null;
+    if(dur !== null) durs.push(dur);
+    if(t.status === 'done') done++; else pend++;
+    if(t.urgent) urg++;
+    const who = t.status !== 'done' ? '' : ((!t.completedBy || t.completedBy === '__app__') ? 'Сайт' : t.completedBy);
+    t.articles.forEach(a => {
+      qty += a.qty;
+      rows.push([String(t.id), c, d, dur, t.status === 'done' ? 'Завершено' : 'В процессе', t.urgent ? 'да' : '', t.employee || '', t.sourceCell, t.destCell, String(a.article), names[a.article] || '', a.qty, who, src]);
+    });
+  });
+  const ws = XLSX.utils.aoa_to_sheet(rows);
+  ws['!cols'] = [22, 17, 17, 14, 12, 8, 16, 16, 16, 14, 50, 10, 16, 14].map(w => ({ wch: w }));
+  for(let r = 1; r < rows.length; r++) [1, 2].forEach(col => { const cell = ws[XLSX.utils.encode_cell({ r, c: col })]; if(cell && cell.t === 'n') cell.z = 'dd.mm.yyyy hh:mm'; });
+  ws['!autofilter'] = { ref: ws['!ref'] };
+  const medD = anMedian_(durs);
+  const flt = [adminTransferStatus === 'done' ? 'только завершённые' : (adminTransferStatus === 'pending' ? 'только в процессе' : 'все статусы'), q ? 'поиск «' + adminTransferQuery.trim() + '»' : null, admExportArch ? 'с архивом' : 'без архива'].filter(Boolean).join(', ');
+  const sum = [
+    ['Выгрузка истории перемещений', ''],
+    ['Сформировано', xlSerial_(new Date().toISOString())],
+    ['Фильтр', flt],
+    ['Перемещений', list.length],
+    ['Строк (позиций)', rows.length - 1],
+    ['Штук всего', qty],
+    ['Завершено', done],
+    ['В процессе', pend],
+    ['Срочных', urg],
+    ['Время выполнения, медиана (мин)', medD === null ? '' : Math.round(medD)],
+    ['Из архива, перемещений', archN],
+    ['Примечание', 'Даты показаны по времени этого устройства. Лист «Перемещения»: одна строка = одна позиция (артикул) перемещения.']
+  ];
+  const ws2 = XLSX.utils.aoa_to_sheet(sum);
+  ws2['!cols'] = [34, 70].map(w => ({ wch: w }));
+  if(ws2.B2) ws2.B2.z = 'dd.mm.yyyy hh:mm';
+  const wb = XLSX.utils.book_new();
+  XLSX.utils.book_append_sheet(wb, ws, 'Перемещения');
+  XLSX.utils.book_append_sheet(wb, ws2, 'Сводка');
+  const dt = new Date();
+  XLSX.writeFile(wb, `peremescheniya_${dt.getFullYear()}-${pad2(dt.getMonth() + 1)}-${pad2(dt.getDate())}.xlsx`);
+  return { transfers: list.length, rows: rows.length - 1, archN };
+}
+
 function renderAdminTransfers(body){
   const q = adminTransferQuery.toLowerCase().trim();
   let items = (state.transfers || []).filter(t => !adminTransferStatus || t.status === adminTransferStatus);
@@ -3723,7 +3954,8 @@ function renderAdminTransfers(body){
   body.innerHTML = `
     <div class="card">
       <h2>Все перемещения <span>${items.length} шт.</span></h2>
-      <div class="adm-actions" style="margin-bottom:10px;"><button type="button" class="btn btn-ghost btn-small" id="admTrExport">Скачать в Excel (по текущему фильтру)</button></div>
+      <div class="adm-actions" style="margin-bottom:10px;flex-wrap:wrap;gap:10px;align-items:center;"><button type="button" class="btn btn-ghost btn-small" id="admTrExport">Скачать в Excel (по текущему фильтру)</button>
+        <label class="muted" style="display:flex;gap:6px;align-items:center;font-size:12.5px;"><input type="checkbox" id="admTrArch" ${admExportArch ? 'checked' : ''}> добавить архив старых перемещений</label></div>
       <div style="display:flex;gap:8px;flex-wrap:wrap;margin-bottom:12px;">
         <input type="text" id="admTrSearch" placeholder="Поиск: артикул, ячейка, сотрудник" value="${escapeAttr(adminTransferQuery)}" style="flex:1;min-width:180px;">
         <select class="adm-select" id="admTrStatus" style="width:auto;">
@@ -3751,16 +3983,14 @@ function renderAdminTransfers(body){
     </div>`;
   document.getElementById('admTrSearch').addEventListener('input', debounce(e => { adminTransferQuery = e.target.value; adminTransferLimit = 40; renderAdminTransfers(body); const i = document.getElementById('admTrSearch'); i.focus(); i.setSelectionRange(i.value.length, i.value.length); }, 250));
   document.getElementById('admTrStatus').addEventListener('change', e => { adminTransferStatus = e.target.value; adminTransferLimit = 40; renderAdminTransfers(body); });
-  document.getElementById('admTrExport').addEventListener('click', async () => {
+  document.getElementById('admTrArch').addEventListener('change', e => { admExportArch = e.target.checked; });
+  document.getElementById('admTrExport').addEventListener('click', async (ev) => {
+    const btn = ev.currentTarget; btn.disabled = true;
     try{
-      await loadXlsx();
-      const rows = [['Создано', 'Завершено', 'Статус', 'Сотрудник', 'Откуда', 'Куда', 'Артикул', 'Кол-во', 'Название', 'Выполнил (Telegram)']];
-      items.forEach(t => t.articles.forEach(a => rows.push([fmtStamp(new Date(t.createdAt)), t.completedAt ? fmtStamp(new Date(t.completedAt)) : '', t.status === 'done' ? 'Завершено' : 'В процессе', t.employee || '', t.sourceCell, t.destCell, a.article, a.qty, nameOf(a.article), t.completedBy && t.completedBy !== '__app__' ? t.completedBy : ''])));
-      const wb = XLSX.utils.book_new(); const ws = XLSX.utils.aoa_to_sheet(rows);
-      ws['!cols'] = [17, 17, 12, 16, 14, 14, 14, 8, 50, 18].map(w => ({ wch: w }));
-      XLSX.utils.book_append_sheet(wb, ws, 'Перемещения');
-      const d = new Date(); XLSX.writeFile(wb, `peremescheniya_${d.getFullYear()}-${pad2(d.getMonth()+1)}-${pad2(d.getDate())}.xlsx`);
+      const r = await exportHistoryXlsx_();
+      showToast(`Файл готов: ${r.transfers} ${anPl_(r.transfers)}, ${r.rows} строк${r.archN ? ' (из архива: ' + r.archN + ')' : ''}`);
     }catch(e){ showToast(e.message || 'Не удалось сформировать файл'); }
+    btn.disabled = false;
   });
   const more = document.getElementById('admTrMore');
   if(more) more.addEventListener('click', () => { adminTransferLimit += 40; renderAdminTransfers(body); });
@@ -4618,6 +4848,7 @@ const AUDIT_KINDS = {
   password: ['Сменён пароль админки', 'settings'],
   upload:   ['Загружена выгрузка', 'settings'],
   telegram: ['Telegram', 'settings'],
+  system:   ['Система', 'settings'],
   login:    ['Вход в админку', 'logins'],
   login_fail:['Неверный пароль при входе', 'logins']
 };
@@ -4629,6 +4860,7 @@ function auditTitle_(it){
   if(it.action === 'setting') t += ': ' + (AUDIT_SETTING_NAMES[it.target] || it.target);
   else if(it.action === 'upload') t += ': ' + it.target;
   else if(it.action === 'telegram') t += ': ' + (AUDIT_TG_NAMES[it.target] || it.target);
+  else if(it.action === 'system') t += ': ' + it.target;
   return t;
 }
 async function renderAdminAudit(body){
@@ -4681,6 +4913,237 @@ function drawAudit(body){
   }));
 }
 
+// ---------- v30: АДМИНКА: СИСТЕМА ----------
+// Копии таблицы, лимиты Google, архив, «прогрев», вечерняя сводка и замеры скорости. Расписания создаёт сам сервер.
+let sysSt = null, sysErrMsg = '', sysSeq = 0, sysArchPick = null;
+const SYS_ARCH_OPTS = [[0, 'не переносить'], [90, 'старше 90 дней'], [180, 'старше 180 дней'], [365, 'старше года'], [730, 'старше двух лет']];
+function sysAt_(iso){ const d = new Date(iso); return Number.isFinite(d.getTime()) ? fmtStamp(d) : String(iso || '—'); }
+function sysOnOff_(on){ return on ? '<span class="status-pill status-done">включено</span>' : '<span class="status-pill status-stale">выключено</span>'; }
+async function renderAdminSystem(body){
+  const my = ++sysSeq;
+  if(!sysSt) body.innerHTML = '<div class="card"><h2>Система</h2><div class="adm-sub">Загружаю…</div></div>';
+  try { sysSt = await adminCall({ action: 'admin_sys_state' }); sysErrMsg = ''; }
+  catch(e) { sysErrMsg = e.message || 'Не удалось получить состояние'; }
+  if(my !== sysSeq || adminSection !== 'system') return;
+  drawSystem(body);
+}
+async function sysCfgSave_(cfg, okMsg, body){
+  try { sysSt = await adminCall({ action: 'admin_sys_set', cfg }); showToast(okMsg); }
+  catch(e) { showToast(e.message || 'Не удалось сохранить'); }
+  if(adminSection === 'system') drawSystem(body);
+}
+function sysHoursSel_(id, from, to, cur){
+  let o = '';
+  for(let h = from; h <= to; h++) o += `<option value="${h}" ${h === cur ? 'selected' : ''}>${pad2(h)}:00</option>`;
+  return `<select class="adm-select" id="${id}" style="width:auto;">${o}</select>`;
+}
+function drawSystem(body){
+  if(!sysSt){
+    body.innerHTML = `<div class="card"><h2>Система</h2><div class="adm-sub" style="color:var(--red);">${escapeHtml(sysErrMsg || 'Нет данных')}</div><div class="adm-actions" style="margin-top:10px;"><button type="button" class="btn btn-ghost btn-small" id="sysRetry">Повторить</button></div></div>`;
+    document.getElementById('sysRetry').addEventListener('click', () => renderAdminSystem(body));
+    return;
+  }
+  const S = sysSt, c = S.cfg || {}, tr = S.trig || {};
+  const trigWarn = tr.error ? `<div class="adm-sub" style="color:var(--red);margin-bottom:8px;">${escapeHtml(tr.error)}</div>` : '';
+  const hint = (txt) => `<div class="adm-sub" style="line-height:1.55;margin:-4px 0 10px;">${txt}</div>`;
+
+  // --- вечерняя сводка ---
+  const evLast = S.evening && S.evening.last ? S.evening.last : '';
+  const evCard = `<div class="card">
+      <h2>Вечерняя сводка в Telegram</h2>
+      ${hint('Раз в день после выбранного часа (Ташкент) бот присылает итоги: сколько выполнено и создано, что висит в очереди, срочные и зависшие, кто выполнял. Приходит тем, у кого в разделе «Telegram» отмечено «Служебные». Время запуска задаёт Google с разбросом около ±15 минут, поэтому сообщение придёт в пределах получаса после указанного часа.')}
+      ${trigWarn}
+      <div class="adm-row"><div class="adm-main">Сводка ${sysOnOff_(c.evening_on)}<div class="adm-sub">${c.evening_on ? (tr.evening ? 'расписание создано' : '<span style="color:var(--red);">расписание не создано — нажмите «Сохранить»</span>') : 'не отправляется'}${evLast ? ' · последняя отправка: ' + escapeHtml(evLast) : ''}</div></div>
+        <div class="adm-actions" style="flex-wrap:wrap;gap:6px;align-items:center;">
+          ${sysHoursSel_('sysEvHour', 17, 23, Number(c.evening_hour) || 20)}
+          <button type="button" class="btn btn-primary btn-small" id="sysEvSave">${c.evening_on ? 'Сохранить' : 'Включить'}</button>
+          ${c.evening_on ? '<button type="button" class="btn btn-ghost btn-small" id="sysEvOff">Выключить</button>' : ''}
+          <button type="button" class="btn btn-ghost btn-small" id="sysEvNow">Отправить сейчас</button>
+        </div></div>
+    </div>`;
+
+  // --- копия таблицы ---
+  const bk = S.backup;
+  const bkLine = bk
+    ? (bk.ok ? `<div class="adm-sub" style="color:var(--green);">Последняя копия: ${escapeHtml(sysAt_(bk.at))} · листов: ${Number(bk.sheets) || 0}${bk.url ? ' · <a href="' + escapeAttr(bk.url) + '" target="_blank" rel="noopener">открыть таблицу с копиями</a>' : ''}</div>`
+              : `<div class="adm-sub" style="color:var(--red);">Последняя попытка (${escapeHtml(sysAt_(bk.at))}) не удалась: ${escapeHtml(bk.error || 'неизвестная ошибка')}</div>`)
+    : '<div class="adm-sub">Копий ещё не было.</div>';
+  const bkCard = `<div class="card">
+      <h2>Ночная копия таблицы</h2>
+      ${hint('Каждую ночь (около 03:10 по Ташкенту) листы с перемещениями, журналом, сотрудниками и настройками копируются в отдельную таблицу у вас на Google Диске. Хранится ' + (Number(S.backupDays) || 14) + ' последних суток. Если в основной таблице что-то испортится или удалится, данные можно взять оттуда. Остатки, витрина и ячейки в копию не входят: они всегда загружаются заново из 1С. Для первого запуска нужно один раз выдать разрешение (см. ниже).')}
+      <div class="adm-row"><div class="adm-main">Копирование ${sysOnOff_(c.backup_on)}
+        <div class="adm-sub">${c.backup_on ? (tr.daily ? 'расписание создано' : '<span style="color:var(--red);">расписание не создано — нажмите «Включить» ещё раз</span>') : 'не выполняется'}</div></div>
+        <div class="adm-actions" style="flex-wrap:wrap;gap:6px;">
+          <button type="button" class="btn btn-primary btn-small" id="sysBkToggle">${c.backup_on ? 'Выключить' : 'Включить'}</button>
+          <button type="button" class="btn btn-ghost btn-small" id="sysBkNow">Сделать копию сейчас</button>
+        </div></div>
+      ${bkLine}
+      <div class="adm-sub" style="margin-top:8px;line-height:1.5;">Если пишет об отсутствии разрешения: в редакторе Apps Script выберите функцию <code>authorizeTelegram</code> → «Выполнить» → «Разрешить» (нужен доступ к таблицам и к расписанию), затем «Развернуть → Управление развёртываниями → Изменить → Новая версия».</div>
+    </div>`;
+
+  // --- архив ---
+  const ar = S.archive || {}, prev = ar.preview, last = ar.last, sh = S.sheets || {};
+  const pick = sysArchPick !== null ? sysArchPick : (Number(c.archive_days) || 0);
+  const prevLine = (prev && prev.ok)
+    ? `<div class="adm-sub">Сейчас под условие попадает: <b>${Number(prev.transfers) || 0}</b> ${anPl_(prev.transfers || 0)} (${Number(prev.rows) || 0} строк) — выполнены раньше ${escapeHtml(sysAt_(prev.cutoff))}.</div>`
+    : `<div class="adm-sub">${c.archive_days > 0 ? escapeHtml((prev && prev.error) || 'Оценить не удалось') : 'Архив выключен.'}</div>`;
+  const lastLine = last ? `<div class="adm-sub">Последний перенос: ${escapeHtml(sysAt_(last.at))} · ${last.ok ? 'перенесено ' + (Number(last.transfers) || 0) + ' ' + anPl_(last.transfers || 0) : '<span style="color:var(--red);">ошибка: ' + escapeHtml(last.error || '') + '</span>'}</div>` : '';
+  const arCard = `<div class="card">
+      <h2>Архив старых перемещений</h2>
+      ${hint('Когда в основном листе накопится много строк, всё начнёт работать медленнее. Архив переносит старые выполненные перемещения на отдельный лист (TransfersArchive) — оттуда они никуда не пропадают. Чтобы <b>не нарушить прогноз остатков и «не выставлено»</b>, переносятся только перемещения, завершённые раньше даты последней загрузки остатков и витрины (плюс старше выбранного срока). Всё остальное остаётся на месте. Минус: перенесённые перемещения перестают учитываться в «Аналитике», «Отчёте» и «Истории» на сайте; в Excel-выгрузку (Админка → Перемещения) их можно добавить.')}
+      <div class="adm-sub" style="margin-bottom:8px;">Строк: основной лист <b>${Number(sh.transfers) || 0}</b> · архив <b>${Number(sh.archive) || 0}</b> · журнал <b>${Number(sh.audit) || 0}</b></div>
+      <div class="adm-row"><div class="adm-main">Переносить ${sysArchPickLabel_(c.archive_days)}</div>
+        <div class="adm-actions" style="flex-wrap:wrap;gap:6px;align-items:center;">
+          <select class="adm-select" id="sysArchDays" style="width:auto;">${SYS_ARCH_OPTS.map(([v, l]) => `<option value="${v}" ${pick === v ? 'selected' : ''}>${l}</option>`).join('')}</select>
+          <button type="button" class="btn btn-primary btn-small" id="sysArchSave">Сохранить срок</button>
+          <button type="button" class="btn btn-ghost btn-small" id="sysArchDry">Проверить</button>
+          <button type="button" class="btn btn-ghost btn-small" id="sysArchRun">Перенести сейчас</button>
+        </div></div>
+      ${prevLine}${lastLine}
+      <div id="sysArchOut" class="adm-sub" style="margin-top:6px;"></div>
+      <div class="adm-sub" style="margin-top:6px;">Автоматически выполняется ночью вместе с копией, если срок задан.</div>
+    </div>`;
+
+  // --- лимиты ---
+  const q = S.quotas || { today: {}, hist: [], errors: [] };
+  const td = q.today || {};
+  const maxF = Math.max(1, ...(q.hist || []).map(h => h.f));
+  const histRows = (q.hist || []).slice().reverse().map(h => `<tr><td>${escapeHtml(h.day.slice(5).split('-').reverse().join('.'))}</td><td class="r">${h.f}</td><td class="r">${h.f429 || 0}</td><td class="r">${h.lock || 0}</td><td class="r">${anNum_(h.trigMin || 0)}</td><td style="width:34%;"><div class="an-hb-track" style="height:5px;"><div class="an-hb-fill" style="width:${Math.round(h.f / maxF * 100)}%;"></div></div></td></tr>`).join('');
+  const errRows = (q.errors || []).map(e => `<div class="adm-sub" style="color:var(--orange-soft);">${escapeHtml(sysAt_(e[0]))} — ${escapeHtml(e[1])}</div>`).join('');
+  const qCard = `<div class="card">
+      <h2>Лимиты Google и ошибки</h2>
+      ${hint('Apps Script бесплатный, но у Google есть суточные ограничения (например, на число обращений сервера к другим сайтам, в том числе к Telegram, и на суммарное время работы расписаний). Ниже — счётчики самого скрипта. <b>Они приблизительные</b>: если два запроса приходят одновременно, один может не засчитаться. Сами лимиты здесь не указаны: они зависят от типа аккаунта и меняются, проверенных данных нет. Актуальные цифры — в документации Google: <code>developers.google.com/apps-script/guides/services/quotas</code>. Важно не само число, а резкий рост и строки «429» или «ошибки» ниже.')}
+      <div class="disp-stats" style="margin-bottom:10px;">
+        <div class="disp-stat"><div class="v">${Number(td.f) || 0}</div><div class="l">обращений к Telegram/себе сегодня</div></div>
+        <div class="disp-stat"><div class="v">${Number(td.f429) || 0}</div><div class="l">ответов «слишком часто» (429)</div></div>
+        <div class="disp-stat"><div class="v">${Number(td.lock) || 0}</div><div class="l">раз сервер был занят</div></div>
+        <div class="disp-stat"><div class="v">${anNum_(Number(td.trigMin) || 0)}</div><div class="l">мин работы расписаний</div></div>
+      </div>
+      ${errRows ? `<div style="margin-bottom:10px;"><div class="adm-sub" style="font-weight:600;margin-bottom:3px;">Последние ошибки лимитов и сбои</div>${errRows}</div>` : '<div class="adm-sub" style="margin-bottom:10px;">Ошибок лимитов за последние дни не зафиксировано.</div>'}
+      <details><summary class="adm-sub" style="cursor:pointer;">История за 14 дней</summary>
+        <div style="overflow-x:auto;"><table class="an-table" style="margin-top:6px;"><thead><tr><th>День</th><th class="r">Обращений</th><th class="r">429</th><th class="r">Занято</th><th class="r">Расписания, мин</th><th></th></tr></thead><tbody>${histRows}</tbody></table></div>
+      </details>
+      <div class="adm-actions" style="margin-top:10px;"><button type="button" class="btn btn-ghost btn-small" id="sysQReload">Обновить</button></div>
+    </div>`;
+
+  // --- прогрев ---
+  const pings = (S.pings || []).slice(-40);
+  const okP = pings.filter(p => p[2] === 200);
+  const medTot = perfQ_(okP.map(p => p[1]), 0.5), medSrv = perfQ_(okP.filter(p => p[3]).map(p => p[3]), 0.5);
+  const slowP = okP.filter(p => p[1] > 5000).length;
+  const pingRows = pings.slice(-12).reverse().map(p => `<tr><td>${escapeHtml(sysAt_(p[0]).slice(5))}</td><td class="r">${p[2] === 200 ? perfMs_(p[1]) : '<span style="color:var(--red);">ошибка ' + (p[2] || '—') + '</span>'}</td><td class="r">${p[3] ? perfMs_(p[3]) : '—'}</td></tr>`).join('');
+  const wCard = `<div class="card">
+      <h2>«Прогрев» сервера</h2>
+      ${hint('Иногда Google отвечает на первый запрос после паузы очень долго — десятки секунд («холодный старт»). Прогрев раз в 5 минут в рабочие часы сам обращается к вашему серверу, чтобы он не «остывал». <b>Помогает ли это — не доказано.</b> Google не обещает, что такой приём работает: нельзя исключить, что запросы идут на разные «экземпляры» сервера. Поэтому ниже записывается время каждой проверки: если после включения долгие ответы (от 5 секунд) не исчезли — выключайте, лишнего он не даёт. Для работы доступ к веб-приложению должен быть «Все».')}
+      ${trigWarn}
+      <div class="adm-row"><div class="adm-main">Прогрев ${sysOnOff_(c.warm_on)}
+        <div class="adm-sub">${c.warm_on ? (tr.warm ? 'расписание создано, каждые 5 минут' : '<span style="color:var(--red);">расписание не создано — нажмите «Сохранить»</span>') : 'не выполняется'}</div></div>
+        <div class="adm-actions" style="flex-wrap:wrap;gap:6px;align-items:center;">
+          с ${sysHoursSel_('sysWarmFrom', 0, 23, Number(c.warm_from))} до ${sysHoursSel_('sysWarmTo', 1, 24, Number(c.warm_to))}
+          <button type="button" class="btn btn-primary btn-small" id="sysWarmSave">${c.warm_on ? 'Сохранить' : 'Включить'}</button>
+          ${c.warm_on ? '<button type="button" class="btn btn-ghost btn-small" id="sysWarmOff">Выключить</button>' : ''}
+          <button type="button" class="btn btn-ghost btn-small" id="sysPingNow">Проверить сейчас</button>
+        </div></div>
+      <div id="sysPingOut" class="adm-sub" style="margin:6px 0;"></div>
+      ${pings.length ? `<div class="adm-sub" style="margin:8px 0 4px;">Проверок записано: ${pings.length}. Успешных: ${okP.length}${medTot !== null ? ' · типичное время ответа ' + perfMs_(medTot) : ''}${medSrv !== null ? ' (из них сервер считал ' + perfMs_(medSrv) + '; остальное — сеть и пробуждение)' : ''}${slowP ? ' · <b>медленнее 5 с: ' + slowP + '</b>' : ''}.</div>
+        <details><summary class="adm-sub" style="cursor:pointer;">Последние проверки</summary><div style="overflow-x:auto;"><table class="an-table" style="margin-top:6px;"><thead><tr><th>Когда</th><th class="r">Всего</th><th class="r">Сервер внутри</th></tr></thead><tbody>${pingRows}</tbody></table></div></details>` : '<div class="adm-sub">Проверок пока не было.</div>'}
+    </div>`;
+
+  // --- замеры ---
+  const dev = perfStats_();
+  const devRows = dev.map(s => `<tr><td>${escapeHtml(s.label)}</td><td class="r">${s.n}</td><td class="r">${perfMs_(s.med)}</td><td class="r">${perfMs_(s.p90)}</td><td class="r">${perfMs_(s.max)}</td><td class="r">${s.srvMed !== null ? perfMs_(s.srvMed) : '—'}</td><td class="r">${s.fail || ''}</td></tr>`).join('');
+  const srv = S.server || {};
+  const srvRows = Object.keys(srv).sort((a, b) => (srv[b].n || 0) - (srv[a].n || 0)).map(k => { const x = srv[k]; return `<tr><td>${escapeHtml(k)}</td><td class="r">${x.n}</td><td class="r">${perfMs_(Math.round(x.sum / Math.max(1, x.n)))}</td><td class="r">${perfMs_(x.max)}</td></tr>`; }).join('');
+  const mCard = `<div class="card">
+      <h2>Замеры скорости</h2>
+      ${hint('Чтобы понять, из-за чего бывают долгие загрузки, записывается время каждого запроса страницы к таблице. <b>«На этом устройстве»</b> — от отправки до начала ответа: сеть + пробуждение сервера Google + работа скрипта. <b>«Сервер внутри»</b> — сколько скрипт реально считал (без сети и пробуждения). Если первое намного больше второго — тормозит не код и не таблица, а сеть или «холодный старт». Для больших выгрузок (остатки, витрина) время до начала ответа, без учёта скачивания. Чем больше запросов, тем точнее. Пока запросов мало, выводы делать рано. Для кладовщиков: откройте страницу с <code>?perf=1</code> в адресе, внизу появится панель с замерами.')}
+      <div class="adm-sub" style="font-weight:600;margin-bottom:3px;">На этом устройстве (последние ${PERF.buf.length})</div>
+      ${devRows ? `<div style="overflow-x:auto;"><table class="an-table"><thead><tr><th>Запрос</th><th class="r">Шт.</th><th class="r">Медиана</th><th class="r">90% ≤</th><th class="r">Макс.</th><th class="r">Сервер внутри</th><th class="r">Сбоев</th></tr></thead><tbody>${devRows}</tbody></table></div>` : '<div class="adm-sub">Пока нет данных — поработайте на сайте.</div>'}
+      <div class="adm-sub" style="font-weight:600;margin:12px 0 3px;">Время работы скрипта за сегодня (по всем устройствам)</div>
+      ${srvRows ? `<div style="overflow-x:auto;"><table class="an-table"><thead><tr><th>Запрос</th><th class="r">Шт.</th><th class="r">В среднем</th><th class="r">Макс.</th></tr></thead><tbody>${srvRows}</tbody></table></div><div class="adm-sub" style="margin-top:4px;">Часть запросов (проверка версии, сообщения от Telegram) учитывается выборочно, чтобы замеры не создавали лишней работы.</div>` : '<div class="adm-sub">Сегодня замеров на сервере ещё нет.</div>'}
+      <div class="adm-actions" style="margin-top:10px;flex-wrap:wrap;gap:6px;">
+        <button type="button" class="btn btn-ghost btn-small" id="sysPerfCopy">Скопировать</button>
+        <button type="button" class="btn btn-ghost btn-small" id="sysPerfXlsx">Скачать в Excel</button>
+        <button type="button" class="btn btn-ghost btn-small" id="sysPerfClear">Очистить замеры устройства</button>
+      </div>
+    </div>`;
+
+  body.innerHTML = (sysErrMsg ? `<div class="card"><div class="adm-sub" style="color:var(--red);">Не удалось обновить: ${escapeHtml(sysErrMsg)}. Показаны прежние данные.</div></div>` : '') + evCard + bkCard + arCard + qCard + wCard + mCard;
+
+  const busy = (btn, on) => { if(btn) btn.disabled = on; };
+  const $ = id => document.getElementById(id);
+  // сводка
+  $('sysEvSave').addEventListener('click', () => sysCfgSave_({ evening_on: true, evening_hour: Number($('sysEvHour').value) }, 'Сводка включена', body));
+  const evOff = $('sysEvOff'); if(evOff) evOff.addEventListener('click', () => sysCfgSave_({ evening_on: false }, 'Сводка выключена', body));
+  $('sysEvNow').addEventListener('click', async e => {
+    const btn = e.currentTarget; busy(btn, true);
+    try { const r = await adminCall({ action: 'admin_summary_now' }); showToast('Сводка отправлена: получателей ' + (r.sent || 0)); }
+    catch(err) { showToast(err.message || 'Не удалось отправить'); }
+    busy(btn, false);
+  });
+  // копия
+  $('sysBkToggle').addEventListener('click', () => sysCfgSave_({ backup_on: !c.backup_on }, c.backup_on ? 'Копирование выключено' : 'Копирование включено', body));
+  $('sysBkNow').addEventListener('click', async e => {
+    const btn = e.currentTarget; busy(btn, true); btn.textContent = 'Копирую…';
+    try { sysSt = await adminCall({ action: 'admin_sys_backup_now' }); showToast('Копия создана'); }
+    catch(err) { showToast(err.message || 'Не удалось создать копию'); }
+    if(adminSection === 'system') renderAdminSystem(body);
+  });
+  // архив
+  $('sysArchDays').addEventListener('change', e => { sysArchPick = Number(e.target.value); });
+  $('sysArchSave').addEventListener('click', () => { const v = Number($('sysArchDays').value); sysArchPick = null; sysCfgSave_({ archive_days: v }, v ? 'Срок архива сохранён' : 'Архив выключен', body); });
+  const archOut = $('sysArchOut');
+  $('sysArchDry').addEventListener('click', async e => {
+    const v = Number($('sysArchDays').value), btn = e.currentTarget;
+    if(!v){ archOut.textContent = 'Выберите срок.'; return; }
+    busy(btn, true); archOut.textContent = 'Проверяю…';
+    try { const r = await adminCall({ action: 'admin_sys_archive', dry: true, days: v }); archOut.textContent = `Под условие подходит: ${r.transfers} ${anPl_(r.transfers)} (${r.rows} строк), выполненных раньше ${sysAt_(r.cutoff)}. Ничего не перенесено.`; }
+    catch(err) { archOut.textContent = err.message || 'Не удалось проверить'; }
+    busy(btn, false);
+  });
+  $('sysArchRun').addEventListener('click', async e => {
+    const v = Number($('sysArchDays').value);
+    if(!v){ archOut.textContent = 'Выберите срок.'; return; }
+    if(!confirm('Перенести старые выполненные перемещения на лист архива? В «Аналитике», «Отчёте» и «Истории» на сайте они перестанут учитываться. Обратно автоматически не возвращаются.')) return;
+    busy(e.currentTarget, true); archOut.textContent = 'Переношу…';
+    try { const r = await adminCall({ action: 'admin_sys_archive', dry: false, days: v }); showToast(`Перенесено: ${r.transfers} ${anPl_(r.transfers)}`); try { await loadState(true); } catch(x) {} }
+    catch(err) { showToast(err.message || 'Не удалось перенести'); }
+    if(adminSection === 'system') renderAdminSystem(body);
+  });
+  // лимиты
+  $('sysQReload').addEventListener('click', () => renderAdminSystem(body));
+  // прогрев
+  $('sysWarmSave').addEventListener('click', () => sysCfgSave_({ warm_on: true, warm_from: Number($('sysWarmFrom').value), warm_to: Number($('sysWarmTo').value) }, 'Прогрев включён', body));
+  const wOff = $('sysWarmOff'); if(wOff) wOff.addEventListener('click', () => sysCfgSave_({ warm_on: false }, 'Прогрев выключен', body));
+  $('sysPingNow').addEventListener('click', async e => {
+    const out = $('sysPingOut'), btn = e.currentTarget; busy(btn, true); out.textContent = 'Проверяю…';
+    try { const r = await adminCall({ action: 'admin_sys_ping' }); out.textContent = r.pingOk ? `Ответ получен за ${perfMs_(r.ms)}${r.srv ? ' (сервер считал ' + perfMs_(r.srv) + ')' : ''}.` : ('Не получилось: ' + (r.error || 'нет ответа')); }
+    catch(err) { out.textContent = err.message || 'Не удалось проверить'; }
+    busy(btn, false);
+  });
+  // замеры
+  $('sysPerfCopy').addEventListener('click', () => { try { navigator.clipboard.writeText(perfText_() + '\n\n' + srvTextForCopy_(srv)); showToast('Скопировано'); } catch(err) { showToast('Не удалось скопировать'); } });
+  $('sysPerfXlsx').addEventListener('click', async () => {
+    try {
+      await loadXlsx();
+      const wb = XLSX.utils.book_new();
+      const add = (name, rows, w) => { const ws = XLSX.utils.aoa_to_sheet(rows); ws['!cols'] = w.map(x => ({ wch: x })); XLSX.utils.book_append_sheet(wb, ws, name); };
+      add('Это устройство', [['Запрос', 'Шт.', 'Медиана, мс', '90% не дольше, мс', 'Максимум, мс', 'Сервер внутри (медиана), мс', 'Сбоев']].concat(dev.map(s => [s.label, s.n, s.med, s.p90, s.max, s.srvMed === null ? '' : s.srvMed, s.fail])), [22, 8, 14, 18, 14, 26, 8]);
+      add('Все запросы', [['Время', 'Запрос', 'Всего, мс', 'Сервер внутри, мс', 'Успех']].concat(PERF.buf.map(r => [sysAt_(r[0]), r[1], r[2], r[3] === null ? '' : r[3], r[4] ? 'да' : 'нет'])), [18, 22, 11, 18, 8]);
+      add('Сервер за сегодня', [['Запрос', 'Шт.', 'В среднем, мс', 'Максимум, мс']].concat(Object.keys(srv).map(k => [k, srv[k].n, Math.round(srv[k].sum / Math.max(1, srv[k].n)), srv[k].max])), [22, 8, 14, 14]);
+      add('Проверки прогрева', [['Время', 'Всего, мс', 'Код', 'Сервер внутри, мс']].concat((S.pings || []).map(p => [sysAt_(p[0]), p[1], p[2], p[3] || ''])), [18, 11, 8, 18]);
+      const d = new Date(); XLSX.writeFile(wb, `zamery_${d.getFullYear()}-${pad2(d.getMonth() + 1)}-${pad2(d.getDate())}.xlsx`);
+    } catch(err) { showToast(err.message || 'Не удалось сформировать файл'); }
+  });
+  $('sysPerfClear').addEventListener('click', () => { if(!confirm('Очистить замеры на этом устройстве?')) return; PERF.buf = []; perfSave_(); drawSystem(body); });
+}
+function sysArchPickLabel_(d){ const o = SYS_ARCH_OPTS.find(x => x[0] === Number(d)); return o ? '<b>' + o[1] + '</b>' : '<b>' + d + ' дн.</b>'; }
+function srvTextForCopy_(srv){
+  const k = Object.keys(srv);
+  if(!k.length) return 'Сервер за сегодня: замеров нет.';
+  return 'Время работы скрипта за сегодня:\n' + k.map(n => `${n}: ${srv[n].n} шт., в среднем ${perfMs_(Math.round(srv[n].sum / Math.max(1, srv[n].n)))}, максимум ${perfMs_(srv[n].max)}`).join('\n');
+}
+
 // ---------- АДМИНКА: TELEGRAM ----------
 // Бот принимает «Старт» от сотрудников (они попадают в список «ждут подключения»), вы вписываете имя и
 // включаете. Новое перемещение приходит всем включённым, кнопка «Выполнил!» отмечает его в таблице
@@ -4727,6 +5190,8 @@ async function renderAdminTelegram(body){
       <div class="adm-actions" style="flex-wrap:wrap;gap:6px;align-items:center;">
         <input type="text" data-tg-name="${escapeAttr(r.chatId)}" value="${escapeAttr(r.name || '')}" placeholder="Имя (как бот будет обращаться)" maxlength="40" style="min-width:190px;">
         <label class="muted" style="display:flex;gap:4px;align-items:center;"><input type="checkbox" data-tg-en="${escapeAttr(r.chatId)}" ${(!r.approved || r.enabled) ? 'checked' : ''}> получает</label>
+        <label class="muted" style="display:flex;gap:4px;align-items:center;" title="Новые перемещения, табло «Сейчас», очередь и напоминания"><input type="checkbox" data-tg-moves="${escapeAttr(r.chatId)}" ${r.moves !== false ? 'checked' : ''}> 📦 Перемещения (товары)</label>
+        <label class="muted" style="display:flex;gap:4px;align-items:center;" title="Итоги дня, запросы свежих остатков, предупреждения о сбоях"><input type="checkbox" data-tg-svc="${escapeAttr(r.chatId)}" ${r.service === true ? 'checked' : ''}> 🛠 Служебные</label>
         <button type="button" class="btn btn-primary btn-small" data-tg-save="${escapeAttr(r.chatId)}">${r.approved ? 'Сохранить' : 'Подключить'}</button>
         <button type="button" class="btn btn-danger btn-small" data-tg-del="${escapeAttr(r.chatId)}">Удалить</button>
       </div></div>`;
@@ -4754,6 +5219,7 @@ async function renderAdminTelegram(body){
     <div class="card">
       <h2>Получатели <span>${recs.length}</span></h2>
       ${inviteHtml}
+      <div class="adm-sub" style="line-height:1.55;margin:6px 0 10px;">Кому что приходит. <b>📦 Перемещения</b> — новые перемещения (товары), закреплённое табло «Сейчас», очередь и напоминания: это для кладовщиков. <b>🛠 Служебные</b> — вечерняя сводка (настраивается в разделе «Система»), запросы свежих остатков из 1С и предупреждения о сбоях: это для вас или руководителя. По умолчанию у всех отмечены «Перемещения», «Служебные» никому не приходят — отметьте себя. Если у человека снять «Перемещения», табло, которое уже закреплено у него в чате, останется как есть и перестанет обновляться; его можно удалить в Telegram вручную.</div>
       ${recHtml}
     </div>
     <div class="card">
@@ -4863,7 +5329,8 @@ async function renderAdminTelegram(body){
     const nameEl = body.querySelector(`[data-tg-name="${CSS.escape(id)}"]`);
     const enEl = body.querySelector(`[data-tg-en="${CSS.escape(id)}"]`);
     try{
-      await adminCall({ action: 'admin_telegram_recipient_save', chatId: id, name: nameEl.value.trim(), enabled: !!enEl.checked });
+      const mvEl = body.querySelector(`[data-tg-moves="${CSS.escape(id)}"]`), svEl = body.querySelector(`[data-tg-svc="${CSS.escape(id)}"]`);
+      await adminCall({ action: 'admin_telegram_recipient_save', chatId: id, name: nameEl.value.trim(), enabled: !!enEl.checked, moves: !!(mvEl && mvEl.checked), service: !!(svEl && svEl.checked) });
       showToast('Сохранено');
       await redraw();
     }catch(e){ showToast(e.message || 'Не удалось сохранить'); }
@@ -5182,11 +5649,12 @@ function checkNewTasks(){
 }
 function fireAlert(fresh){
   const t = fresh[0];
-  showToast(fresh.length === 1 ? `Новое перемещение: ${t.sourceCell} → ${t.destCell}` : `Новых перемещений: ${fresh.length}`);
+  const urgN = fresh.filter(x => x.urgent).length;
+  showToast(urgN ? (fresh.length === 1 ? `🔥 СРОЧНО: ${t.sourceCell} → ${t.destCell}` : `Новых перемещений: ${fresh.length}, из них срочных: ${urgN}`) : (fresh.length === 1 ? `Новое перемещение: ${t.sourceCell} → ${t.destCell}` : `Новых перемещений: ${fresh.length}`));
   if(alertsCfg.sound) playBeep();
   if(alertsCfg.vibrate && navigator.vibrate){ try { navigator.vibrate([200, 100, 200]); } catch(e) {} }
   if(alertsCfg.notify && document.hidden && 'Notification' in window && Notification.permission === 'granted'){
-    try { new Notification('Новое перемещение', { body: fresh.length === 1 ? `${t.sourceCell} → ${t.destCell} · ${t.articles.length} арт.` : `Новых: ${fresh.length}`, tag: 'wt-new', renotify: true }); } catch(e) { /* на части телефонов конструктор недоступен */ }
+    try { new Notification(urgN ? '🔥 Срочное перемещение' : 'Новое перемещение', { body: fresh.length === 1 ? `${t.sourceCell} → ${t.destCell} · ${t.articles.length} арт.` : `Новых: ${fresh.length}`, tag: 'wt-new', renotify: true }); } catch(e) { /* на части телефонов конструктор недоступен */ }
   }
 }
 function renderAlertsUi(){
