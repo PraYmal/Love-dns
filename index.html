@@ -6,6 +6,8 @@
 <meta name="robots" content="noindex, nofollow, noarchive">
 <script>try{var t=localStorage.getItem('wt_theme');if(t==='light'||t==='dark')document.documentElement.setAttribute('data-theme',t);}catch(e){}</script>
 <title>Учёт перемещений — склад DNS</title>
+<link rel="preconnect" href="https://fonts.googleapis.com"><link rel="preconnect" href="https://fonts.gstatic.com" crossorigin>
+<link rel="stylesheet" href="https://fonts.googleapis.com/css2?family=IBM+Plex+Mono:wght@500;600&family=IBM+Plex+Sans:wght@400;500;600;700&display=swap">
 <style>
   :root{
     --charcoal-950:#17171a;
@@ -307,7 +309,7 @@
     #historyTableWrap tr{background:var(--charcoal-800);border:1px solid var(--line);border-radius:10px;padding:6px 10px;margin-bottom:10px;}
     #historyTableWrap tr:hover td{background:transparent;}
     #historyTableWrap td{border-bottom:none;padding:5px 0;display:flex;justify-content:space-between;gap:12px;text-align:right;word-break:break-word;}
-    #historyTableWrap td::before{content:attr(data-label);color:var(--text-dim);font-size:11.5px;text-transform:uppercase;letter-spacing:.4px;text-align:left;flex:none;padding-top:2px;}
+    #historyTableWrap td::before{content:attr(data-label);color:var(--text-dim);font-size:12px;text-transform:none;letter-spacing:0;text-align:left;flex:none;padding-top:2px;}
     #historyTableWrap td:empty{display:none;}
     #historyTableWrap td:last-child{justify-content:flex-end;}
     #historyTableWrap td:last-child::before{content:none;}
@@ -437,6 +439,59 @@
     .ring .bar,.disp-item.anim,.skel{animation:none !important;}
     .cat-bar .fill{transition:none;}
   }
+
+  /* ===== v22: удобство и вид ===== */
+  :root{--tag-bg:#dde1e6;--tag-fg:#14171b;}
+  :root[data-theme="light"]{--tag-bg:#1f2329;--tag-fg:#f1f3f5;}
+  body{font-family:"IBM Plex Sans",-apple-system,BlinkMacSystemFont,"Segoe UI",Roboto,Arial,sans-serif;}
+  .sku,.cell-tag,.disp-cell-btn,.disp-meta,.inv-cell-card .cell-name,.qr-code-label,.pick-item-meta,.qty-item .qty-item-name,.cell-ac .ac-item b,.dash-pct{font-family:"IBM Plex Mono",ui-monospace,Menlo,Consolas,monospace;}
+  :focus-visible{outline:2px solid var(--orange);outline-offset:2px;}
+  header.app-header{margin-bottom:12px;}
+  nav.tabs{position:sticky;top:0;z-index:60;background:var(--charcoal-950);flex-wrap:nowrap;overflow-x:auto;scrollbar-width:none;margin:0 -16px 16px;padding:0 16px;}
+  nav.tabs::-webkit-scrollbar{display:none;}
+  nav.tabs button{flex:none;}
+  .card h2{font-size:16px;text-transform:none;letter-spacing:0;font-weight:650;}
+  .card h2 span{display:block;margin-top:2px;font-size:13px;}
+  /* метка ячейки как наклейка на стеллаже: светлая плашка, тёмный моноширинный код */
+  .cell-tag{background:var(--tag-bg);color:var(--tag-fg);border-color:transparent;font-weight:600;}
+  .cell-tag:hover{background:var(--orange);color:#1a1a1a;border-color:transparent;}
+  .disp-bignum .u{text-transform:none;letter-spacing:0;font-size:11.5px;max-width:84px;line-height:1.2;}
+  /* подсказка, сводка и настройки списка — сворачиваются, чтобы работа начиналась сразу */
+  details.help{margin:2px 0 12px;}
+  details.help>summary,details.filters>summary{cursor:pointer;color:var(--text-dim);font-size:13.5px;list-style:none;display:inline-flex;align-items:center;gap:6px;padding:4px 0;}
+  details.help>summary::-webkit-details-marker,details.filters>summary::-webkit-details-marker,details.dash>summary::-webkit-details-marker{display:none;}
+  details.help>summary::before,details.filters>summary::before{content:"▸";transition:transform .15s;display:inline-block;}
+  details.help[open]>summary::before,details.filters[open]>summary::before{transform:rotate(90deg);}
+  details.help>summary:hover,details.filters>summary:hover{color:var(--text);}
+  details.help p{margin:6px 0 0;color:var(--text-dim);font-size:13.5px;line-height:1.55;max-width:70ch;}
+  details.dash{margin-top:12px;border:1px solid var(--line);border-radius:12px;background:var(--charcoal-800);}
+  details.dash>summary{cursor:pointer;list-style:none;display:flex;align-items:center;gap:12px;padding:12px 14px;}
+  details.dash>summary::after{content:"▾";margin-left:auto;color:var(--text-dim);transition:transform .15s;}
+  details.dash[open]>summary::after{transform:rotate(180deg);}
+  details.dash>#displaySummary{padding:2px 14px 14px;margin-top:0 !important;}
+  .dash-pct{font-size:26px;font-weight:600;line-height:1;color:var(--orange);}
+  .dash-txt{font-size:13.5px;color:var(--text-dim);line-height:1.35;}
+  details.filters{margin:2px 0 4px;}
+  details.filters .badge{background:var(--orange);color:#1a1a1a;border-radius:999px;font-size:11.5px;font-weight:700;padding:1px 7px;}
+  .filt-grid{display:grid;grid-template-columns:repeat(auto-fit,minmax(280px,1fr));gap:6px 18px;margin-top:8px;padding:12px;border:1px solid var(--line);border-radius:10px;background:var(--charcoal-800);}
+  .filt-grid>div{margin-bottom:0 !important;}
+  .filt-grid .disp-check{grid-column:1/-1;margin:2px 0;}
+  @media (max-width:640px){
+    body{padding:12px 12px 70px;}
+    header.app-header{gap:10px;margin-bottom:6px;}
+    header.app-header p,.hide-sm{display:none;}
+    header.app-header h1{font-size:16px;line-height:1.2;}
+    .logo-mark{width:32px;height:32px;font-size:13px;border-radius:8px;}
+    nav.tabs{margin:0 -12px 12px;padding:0 12px;gap:0;}
+    nav.tabs button{padding:11px 13px;}
+    .card{padding:14px;}
+    #displayCategoryFilter{flex-wrap:nowrap;overflow-x:auto;scrollbar-width:none;margin-right:-12px;padding-right:12px;}
+    #displayCategoryFilter .employee-btn{flex:none;}
+    /* «История» на телефоне: товары не сжимать в узкую колонку справа */
+    #historyTableWrap td[data-label="Товары"]{display:block;text-align:left;}
+    #historyTableWrap td[data-label="Товары"]::before{display:block;margin-bottom:6px;}
+    .filt-grid{grid-template-columns:1fr;}
+  }
 </style>
 </head>
 <body>
@@ -455,14 +510,14 @@
       <p>Отправитель → получатель, с историей и отметкой о завершении</p>
     </div>
     <button class="btn btn-ghost btn-small" id="themeBtn" title="Светлая / тёмная тема" style="margin-right:6px;">☀</button>
-    <button class="btn btn-ghost btn-small" id="refreshBtn" title="Подтянуть последние изменения">⟳ Обновить</button>
+    <button class="btn btn-ghost btn-small" id="refreshBtn" title="Подтянуть последние изменения" aria-label="Обновить">⟳<span class="hide-sm"> Обновить</span></button>
   </header>
 
   <nav class="tabs">
     <button class="tab-btn active" data-tab="display">Выставление</button>
     <button class="tab-btn" data-tab="history">История</button>
-    <button class="tab-btn" data-tab="inventory">Остатки по ячейкам</button>
-    <button class="tab-btn" data-tab="qr">QR-коды ячеек</button>
+    <button class="tab-btn" data-tab="inventory">Остатки</button>
+    <button class="tab-btn" data-tab="qr">QR-коды</button>
     <button class="tab-btn" data-tab="admin">⚙ Админка</button>
   </nav>
 
@@ -567,15 +622,13 @@
   <!-- ================= TAB: DISPLAY (выставление товара на витрину) ================= -->
   <div class="panel active" id="tab-display">
     <div class="card">
-      <h2>Выставление товара <span>что ещё не на витрине и где лежит</span></h2>
-      <p class="muted" style="margin-top:-6px;">
-        Список берётся из листа «vitrina» (выгрузка «Выставление товара на витрину» из 1С), ячейки — из листа «ostatki» с учётом наших переносов.
-        Нажмите на ячейку у товара, укажите количество — создастся обычное перемещение «ячейка → Витрина», кладовщик увидит его во вкладке «История».
-      </p>
+      <h2>Что выставить <span>товары, которых нет на витрине, и ячейки, где они лежат</span></h2>
+      <details class="help"><summary>Как это работает</summary><p>Список берётся из листа «vitrina» (выгрузка «Выставление товара на витрину» из 1С), ячейки — из листа «ostatki» с учётом наших переносов.
+        Нажмите на ячейку у товара, укажите количество — создастся обычное перемещение «ячейка → Витрина», кладовщик увидит его во вкладке «История».</p></details>
       <label class="muted" style="display:block;margin:10px 0 6px;">Сотрудник</label>
       <div class="employee-list" id="displayEmployeeList"></div>
       <div id="dataWarn"></div>
-      <div id="displaySummary" style="margin-top:14px;"></div>
+      <details class="dash" id="dashBox"><summary id="dashHead"><span class="dash-txt">Сводка загружается…</span></summary><div id="displaySummary"></div></details>
     </div>
 
     <div class="card">
@@ -583,6 +636,7 @@
         <input type="text" id="displaySearch" placeholder="Поиск по названию или коду товара...">
       </div>
       <div class="employee-list" id="displayCategoryFilter" style="margin-bottom:10px;"></div>
+      <details class="filters" id="filtBox"><summary>Настройки списка <span class="badge" id="filtBadge" style="display:none;"></span></summary><div class="filt-grid">
       <div style="display:flex;gap:8px;align-items:center;margin-bottom:8px;">
         <label class="muted" for="displaySort" style="white-space:nowrap;">Сортировка</label>
         <select class="adm-select" id="displaySort">
@@ -610,6 +664,7 @@
       </div>
       <label class="disp-check"><input type="checkbox" id="displayHideQueued" checked> Скрыть то, что уже полностью отправлено на витрину (ждёт кладовщика)</label>
       <label class="disp-check"><input type="checkbox" id="displayOnlyWithCell"> Только товары, у которых известна ячейка</label>
+      </div></details>
       <div id="displayListWrap" style="margin-top:12px;"></div>
     </div>
   </div>
@@ -1545,6 +1600,7 @@ function showToast(msg){
 // ---------- tabs ----------
 document.querySelectorAll('.tab-btn').forEach(btn=>{
   btn.addEventListener('click', async ()=>{
+    try{ if(btn.dataset.tab !== 'admin') localStorage.setItem('wt_tab', btn.dataset.tab); }catch(e){}
     document.querySelectorAll('.tab-btn').forEach(b=>b.classList.remove('active'));
     document.querySelectorAll('.panel').forEach(p=>p.classList.remove('active'));
     btn.classList.add('active');
@@ -2505,6 +2561,8 @@ function renderDisplaySummary(scope, calc, tiles, caption){
   const fully = real.filter(i => i.notOn === 0).length;
   const partialPos = real.filter(i => i.on > 0 && i.notOn > 0).length;
   const unit = pos ? 'поз.' : 'шт.';
+  const dh = document.getElementById('dashHead');
+  if(dh) dh.innerHTML = `<span class="dash-pct">${Math.round(pct * 100)}%</span><span class="dash-txt">выставлено · ${pos ? dispPos + ' из ' + real.length + ' поз.' : onPcs + ' из ' + totalPcs + ' шт.'}${caption ? '<br>' + escapeHtml(caption) : ''}</span>`;
   const R = 50, C = 2 * Math.PI * R;
   const off = C * (1 - pct);
   const cats = {};
@@ -2563,6 +2621,8 @@ function renderDisplay(){
   const show = document.getElementById('displayShow').value;      // need | zero | partial | full | all
   const calc = document.getElementById('displayCalc').value;      // pcs | pos
   const sort = document.getElementById('displaySort').value;
+  { const n = Number(sort !== 'cat') + Number(show !== 'need') + Number(calc !== 'pcs') + Number(!hideQueued) + Number(!!onlyWithCell);
+    const bd = document.getElementById('filtBadge'); if(bd){ bd.textContent = n || ''; bd.style.display = n ? '' : 'none'; } }
 
   const universe = vitrinaItems.map(it => {
     const queued = pendingToDisplay[it.code] || 0;
@@ -2651,7 +2711,7 @@ function renderDisplay(){
           <div class="disp-skuline"><span class="sku sku-lg">${escapeHtml(it.code)}</span>${it.on === 0 ? '<span class="tag-zero" style="margin-left:0;">нет на витрине</span>' : ''}${it.cat ? `<span class="cat">${escapeHtml(it.cat)}</span>` : ''}</div>
           <div class="disp-name">${escapeHtml(it.name)}</div>
         </div>
-        <div class="disp-bignum"><div class="n">${it.notOn}</div><div class="u">${it.notOn === 0 ? 'всё на витрине' : 'не выставл.'}</div></div>
+        <div class="disp-bignum"><div class="n">${it.notOn}</div><div class="u">${it.notOn === 0 ? 'всё на витрине' : 'не выставлено'}</div></div>
       </div>
       <div class="disp-prog"><div style="width:${p}%"></div></div>
       <div class="disp-prog-label"><span>на витрине ${it.on} из ${it.total} (${p}%)${it.adj ? ` · выставлено после выгрузки: ${it.adj}` : ''}</span><span>${it.queued > 0 ? `<span class="disp-queued" style="margin:0;">у кладовщика: ${it.queued}</span>` : ''}${inCartQty > 0 ? `<span class="disp-queued" style="margin:0 0 0 6px;background:var(--green-dim);color:var(--green);">в корзине: ${inCartQty}</span>` : ''}</span></div>`;
@@ -4040,6 +4100,21 @@ loadState();
 Promise.resolve(fetchConfig()).then(() => cellsReady).catch(() => {}).then(handleQrParam);
 fetchOstatki();
 fetchVitrina();
+
+// ---------- v22: запоминаем вкладку и состояние сводки ----------
+(function(){
+  const box = document.getElementById('dashBox');
+  if(box){
+    let open = false;
+    try { const v = localStorage.getItem('wt_dash'); if(v === '1') open = true; else if(v === '0') open = false; } catch(e) {}
+    box.open = open;
+    box.addEventListener('toggle', () => { try { localStorage.setItem('wt_dash', box.open ? '1' : '0'); } catch(e) {} });
+  }
+  try {
+    const t = localStorage.getItem('wt_tab');
+    if(t && t !== 'display'){ const b = document.querySelector('.tab-btn[data-tab="' + t + '"]'); if(b) b.click(); }
+  } catch(e) {}
+})();
 </script>
 </body>
 </html>
