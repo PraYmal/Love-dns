@@ -605,7 +605,7 @@
         <label class="muted" for="displayCalc" style="white-space:nowrap;">Считать</label>
         <select class="adm-select" id="displayCalc">
           <option value="pcs">По штукам (единичные)</option>
-          <option value="pos">По позициям (полные: позиция выставлена, когда все её штуки на витрине)</option>
+          <option value="pos">По позициям (позиция выставлена, если на витрине есть хотя бы 1 шт.)</option>
         </select>
       </div>
       <label class="disp-check"><input type="checkbox" id="displayHideQueued" checked> Скрыть то, что уже полностью отправлено на витрину (ждёт кладовщика)</label>
@@ -2489,39 +2489,44 @@ let lastDisplaySig = null;
 
 function pctOf(it){ return it.total > 0 ? it.on / it.total : 0; }
 
-function renderDisplaySummary(all, calc, tiles){
+function renderDisplaySummary(scope, calc, tiles, caption){
   const summary = document.getElementById('displaySummary');
   // «Выставлено X%» — по штукам: сумма «на витрине» / сумма «остаток» по всей выгрузке.
   // Это моё определение; формулу «Витрина % общий» из вашего Power BI прочитать не удалось,
   // поэтому цифра может отличаться от неё.
-  // calc === 'pos': считаем ПОЗИЦИИ (артикулы): позиция выставлена, когда все её штуки на витрине.
+  // calc === 'pos': считаем ПОЗИЦИИ (артикулы): позиция считается выставленной, если на витрине есть хотя бы 1 шт.
+  // (так определил владелец; «полностью» — когда на витрине ВСЕ её штуки, «частично» — когда есть, но не все).
   const pos = calc === 'pos';
-  const real = vitrinaItems.filter(i => i.total > 0);
-  const totalPcs = pos ? real.length : vitrinaItems.reduce((a,i) => a + i.total, 0);
-  const onPcs = pos ? real.filter(i => i.notOn === 0).length : vitrinaItems.reduce((a,i) => a + i.on, 0);
+  const real = scope.filter(i => i.total > 0);
+  const totalPcs = pos ? real.length : scope.reduce((a,i) => a + i.total, 0);
+  const dispPos = real.filter(i => i.on > 0).length;      // позиция на витрине: хотя бы 1 шт.
+  const onPcs = pos ? dispPos : scope.reduce((a,i) => a + i.on, 0);
   const pct = totalPcs > 0 ? Math.min(1, onPcs / totalPcs) : 0;
   const fully = real.filter(i => i.notOn === 0).length;
+  const partialPos = real.filter(i => i.on > 0 && i.notOn > 0).length;
   const unit = pos ? 'поз.' : 'шт.';
   const R = 50, C = 2 * Math.PI * R;
   const off = C * (1 - pct);
   const cats = {};
-  vitrinaItems.forEach(i => {
+  scope.forEach(i => {
     const k = i.cat1 || 'Без категории';
     (cats[k] = cats[k] || { on: 0, total: 0 });
-    if(pos){ if(i.total > 0){ cats[k].total += 1; if(i.notOn === 0) cats[k].on += 1; } }
+    if(pos){ if(i.total > 0){ cats[k].total += 1; if(i.on > 0) cats[k].on += 1; } }
     else { cats[k].on += i.on; cats[k].total += i.total; }
   });
   const catRows = Object.entries(cats).filter(([,c]) => c.total > 0).sort((a,b) => (a[1].on / a[1].total) - (b[1].on / b[1].total));
   summary.innerHTML = `
     <div class="ring-wrap">
-      <div class="ring" title="${pos ? 'Позиций, выставленных полностью' : 'Выставлено штук от общего остатка'}">
+      <div class="ring" title="${pos ? 'Позиций, у которых на витрине есть хотя бы 1 шт.' : 'Выставлено штук от общего остатка'}">
         <svg viewBox="0 0 120 120"><circle class="track" cx="60" cy="60" r="${R}" fill="none" stroke-width="11"/>
           <circle class="bar" cx="60" cy="60" r="${R}" fill="none" stroke-width="11" stroke-dasharray="${C.toFixed(1)}" style="--circ:${C.toFixed(1)};--off:${off.toFixed(1)};stroke-dashoffset:${off.toFixed(1)};"/></svg>
         <div class="center"><b>${Math.round(pct * 100)}%</b><span>выставлено</span></div>
       </div>
       <div class="ring-text">
-        ${pos ? `Выставлено полностью: <b>${onPcs}</b> из <b>${totalPcs}</b> поз.` : `На витрине <b>${onPcs}</b> из <b>${totalPcs}</b> шт.`}<br>
-        ${pos ? `Всего штук: на витрине <b>${vitrinaItems.reduce((a,i) => a + i.on, 0)}</b> из <b>${vitrinaItems.reduce((a,i) => a + i.total, 0)}</b>` : `Полностью выставлено позиций: <b>${fully}</b> из <b>${real.length}</b>`}<br>
+        ${pos ? `Позиций на витрине (хотя бы 1 шт.): <b>${dispPos}</b> из <b>${real.length}</b>` : `На витрине <b>${onPcs}</b> из <b>${totalPcs}</b> шт.`}<br>
+        ${pos ? `Всего штук: на витрине <b>${scope.reduce((a,i) => a + i.on, 0)}</b> из <b>${scope.reduce((a,i) => a + i.total, 0)}</b>` : `Позиций на витрине (хотя бы 1 шт.): <b>${dispPos}</b> из <b>${real.length}</b>`}<br>
+        <span style="font-size:12.5px;">из них полностью: <b>${fully}</b> · частично: <b>${partialPos}</b> · совсем нет: <b>${real.length - dispPos}</b></span><br>
+        ${caption ? `<span class="scope-note" style="display:block;font-size:12px;color:var(--orange-soft);margin-top:2px;">Срез: ${escapeHtml(caption)}</span>` : ''}
         <span style="font-size:12px;">Считается ${pos ? 'по позициям' : 'по штукам'}. Цифра может отличаться от «Витрина %» в Power BI.</span>
       </div>
     </div>
@@ -2565,20 +2570,38 @@ function renderDisplay(){
   });
   const all = universe.filter(it => it.notOn > 0);
 
-  const totalNeed = all.reduce((a,it)=>a+it.need,0);
-  const totalQueued = all.reduce((a,it)=>a+Math.min(it.queued,it.notOn),0);
-  const withCell = all.filter(it => it.need > 0 && it.cells.length > 0).length;
-  const positions = all.filter(it => it.need > 0).length;
-  const zeroCount = all.filter(it => it.on === 0 && it.need > 0).length;
-  const fullyPos = universe.filter(it => it.total > 0 && it.notOn === 0).length;
-  renderDisplaySummary(all, calc, `
-      <div class="disp-stat"><div class="v">${positions}</div><div class="l">позиций к выставлению</div></div>
+  // Виджет сверху считается по тем же настройкам, что и список ниже: категория, поиск, «только с известной
+  // ячейкой» и «Показывать» (кроме «Невыставленные» и «Все позиции» — для них берём весь срез, иначе процент
+  // «выставлено» не имел бы смысла: в него должны входить и полностью выставленные позиции).
+  // «Скрыть то, что уже отправлено» виджет не меняет: эти штуки ещё не на витрине.
+  let scope = universe.filter(it => it.total > 0);
+  if(displayCategory) scope = scope.filter(it => (it.cat1 || 'Без категории') === displayCategory);
+  if(q) scope = scope.filter(it => it.code.toLowerCase().includes(q) || it.name.toLowerCase().includes(q));
+  if(onlyWithCell) scope = scope.filter(it => it.cells.length > 0 || it.notOn === 0);
+  if(show === 'zero') scope = scope.filter(it => it.notOn > 0 && it.on <= 0);
+  else if(show === 'partial') scope = scope.filter(it => it.notOn > 0 && it.on > 0);
+  else if(show === 'full') scope = scope.filter(it => it.notOn === 0);
+  const sAll = scope.filter(it => it.notOn > 0);
+  const capParts = [];
+  if(show !== 'need' && show !== 'all'){ const o = document.getElementById('displayShow'); capParts.push(o.options[o.selectedIndex].text.replace(/\s*\(.*$/, '')); }
+  if(displayCategory) capParts.push(displayCategory);
+  if(q) capParts.push('поиск «' + q + '»');
+  if(onlyWithCell) capParts.push('только с известной ячейкой');
+  const totalNeed = sAll.reduce((a,it)=>a+it.need,0);
+  const totalQueued = sAll.reduce((a,it)=>a+Math.min(it.queued,it.notOn),0);
+  const withCell = sAll.filter(it => it.need > 0 && it.cells.length > 0).length;
+  const positions = sAll.filter(it => it.need > 0).length;
+  const zeroCount = sAll.filter(it => it.on === 0 && it.need > 0).length;
+  const partialCount = sAll.filter(it => it.on > 0 && it.need > 0).length;
+  const fullyPos = scope.filter(it => it.total > 0 && it.notOn === 0).length;
+  renderDisplaySummary(scope, calc, `
+      <div class="disp-stat"><div class="v" style="${zeroCount ? 'color:var(--red)' : ''}">${zeroCount}</div><div class="l">позиций не выставлено совсем (0 шт.)</div></div>
+      <div class="disp-stat"><div class="v">${partialCount}</div><div class="l">позиций выставлено частично</div></div>
       ${calc === 'pos'
         ? `<div class="disp-stat"><div class="v">${fullyPos}</div><div class="l">позиций выставлено полностью</div></div>`
         : `<div class="disp-stat"><div class="v">${totalNeed}</div><div class="l">шт. не на витрине</div></div>`}
-      <div class="disp-stat"><div class="v" style="${zeroCount ? 'color:var(--red)' : ''}">${zeroCount}</div><div class="l">совсем нет на витрине</div></div>
       <div class="disp-stat"><div class="v">${withCell}</div><div class="l">позиций с известной ячейкой</div></div>
-      <div class="disp-stat"><div class="v">${totalQueued}</div><div class="l">шт. ждут кладовщика</div></div>`);
+      <div class="disp-stat"><div class="v">${totalQueued}</div><div class="l">шт. ждут кладовщика</div></div>`, capParts.join(' · '));
 
   const cats = [...new Set(all.map(it => it.cat1 || 'Без категории'))].sort();
   const catWrap = document.getElementById('displayCategoryFilter');
@@ -3328,6 +3351,9 @@ function analyzeUpload(sheet, rows){
     if(!hasHeader) warnings.push('Не найден заголовок «Кол-во всего» — это точно выгрузка остатков по ячейкам?');
     if(noQty) warnings.push(`У ${noQty} позиций не удалось прочитать количество.`);
     if(cells < 50) warnings.push(`Найдено всего ${cells} ячеек — файл выглядит неполным.`);
+    const prevItems = Object.values(state.ostatki || {}).reduce((a,l) => a + l.length, 0);
+    if(prevItems >= 200 && items < prevItems * 0.7) warnings.push(`В файле ${items} позиций, а в таблице сейчас ${prevItems} — файл заметно меньше. Если так и должно быть, продолжайте; если нет — проверьте, что выгрузка не обрезана.`);
+    if(rows.length >= 500 && rows.length % 100 === 0) warnings.push(`В файле ровно ${rows.length} строк — слишком круглое число, возможно выгрузка обрезана.`);
     const prev = Object.keys(state.ostatki || {}).length;
     summary = `${cells} ячеек, ${items} позиций` + (prev ? ` (сейчас в таблице: ${prev} ячеек)` : '');
     return { ok: cells > 0 && items > 0, summary, warnings };
@@ -3336,6 +3362,8 @@ function analyzeUpload(sheet, rows){
     const items = parseVitrinaRows(rows);
     const need = items.filter(i => i.notOn > 0).length;
     if(items.length < 100) warnings.push(`Всего ${items.length} товаров — файл выглядит неполным.`);
+    if(vitrinaRaw.length >= 200 && items.length < vitrinaRaw.length * 0.7) warnings.push(`В файле ${items.length} товаров, а в таблице сейчас ${vitrinaRaw.length} — файл заметно меньше. Если так и должно быть, продолжайте; если нет — проверьте число строк в исходном файле: выгрузка могла обрезаться.`);
+    if(rows.length >= 500 && rows.length % 100 === 0) warnings.push(`В файле ровно ${rows.length} строк — слишком круглое число, возможно выгрузка обрезана.`);
     if(!items.some(i => i.cat1)) warnings.push('Нет колонки «Иерархия1» — отчёт по категориям будет без категорий.');
     summary = `${items.length} товаров, не полностью на витрине: ${need}` + (vitrinaRaw.length ? ` (сейчас в таблице: ${vitrinaRaw.length} товаров)` : '');
     return { ok: items.length > 0, summary, warnings };
@@ -3381,7 +3409,11 @@ async function verifyAndRepair(sheet, rows, setMsg){
     const live = await fetchSheetRaw(sheet);
     const bad = findBadRows(rows, live, width);
     if(firstBad === null) firstBad = bad.length;
-    if(!bad.length) return { ok: true, total: rows.length, firstBad, fixed };
+    // лишние строки НИЖЕ конца файла (остатки старой таблицы) — тоже ошибка: из них потом считались бы чужие остатки
+    let extra = 0;
+    for(let i = rows.length; i < live.length; i++) if(rowSig(live[i], width).replace(/\u0001/g, '') !== '') extra++;
+    if(!bad.length && !extra) return { ok: true, total: rows.length, firstBad, fixed, tableRows: live.length };
+    if(!bad.length && extra) return { ok: false, total: rows.length, firstBad, left: 0, extra, sample: [] };
     if(pass === 2) return { ok: false, total: rows.length, firstBad, left: bad.length, sample: bad.slice(0, 5).map(i => i + 1) };
     setMsg(`В таблице не хватает данных в ${bad.length} строках, дозаписываю…`);
     const groups = [];
@@ -3400,7 +3432,8 @@ function uploadCheckHtml(sheet){
   const c = uploadChecks[sheet];
   if(!c) return '';
   if(c.error) return `<div class="adm-sub" style="color:var(--red);margin-bottom:8px;">⚠ Проверка после загрузки не удалась: ${escapeHtml(c.error)}</div>`;
-  if(c.ok) return `<div class="adm-sub" style="color:var(--green);margin-bottom:8px;">✅ Проверено: таблица совпадает с файлом (${c.total} строк)${c.firstBad ? `. При первой записи потерялись данные в ${c.firstBad} строках — они дозаписаны автоматически` : ''}.</div>`;
+  if(!c.ok && c.extra) return `<div class="adm-sub" style="color:var(--red);margin-bottom:8px;">⚠ В таблице под данными файла остались лишние строки от прежней загрузки (${c.extra}). Загрузите файл ещё раз; если повторится — сообщите мне.</div>`;
+  if(c.ok) return `<div class="adm-sub" style="color:var(--green);margin-bottom:8px;">✅ Проверено: таблица совпадает с файлом, старых данных не осталось (${c.total} строк)${c.firstBad ? `. При первой записи потерялись данные в ${c.firstBad} строках — они дозаписаны автоматически` : ''}.</div>`;
   return `<div class="adm-sub" style="color:var(--red);margin-bottom:8px;">⚠ После загрузки в таблице расходятся ${c.left} строк из ${c.total} (например, строки ${c.sample.join(', ')}). Повторите загрузку; если повторится — сообщите мне.</div>`;
 }
 
@@ -3461,7 +3494,7 @@ function renderAdminData(body){
     const sheet = btn.dataset.uplGo;
     const p = uploadPending[sheet];
     if(!p || !p.ok || uploadBusy) return;
-    if(!confirm(`Заменить данные листа «${sheet}» содержимым файла «${p.fileName}»?`)) return;
+    if(!confirm(`Заменить данные листа «${sheet}» содержимым файла «${p.fileName}»?` + (p.warnings && p.warnings.length ? '\n\n⚠ ' + p.warnings.join('\n⚠ ') : ''))) return;
     uploadBusy = true;
     body.querySelectorAll('button,input').forEach(x => x.disabled = true);
     const prog = document.getElementById('uplProg_' + sheet);
@@ -3662,6 +3695,7 @@ async function renderAdminTelegram(body){
   }).join('') : `<div class="empty-state">Пока никого. ${s && s.bot ? 'Пусть сотрудники откроют бота и нажмут «Старт»:' : 'Сначала подключите бота.'}</div>`;
   const inviteHtml = s && s.bot ? `<div class="adm-sub" style="margin:8px 0;">Ссылка на бота для сотрудников: <b>https://t.me/${escapeHtml(s.bot)}</b> · группа: добавьте бота в группу и отправьте там <code>/start</code></div>` : '';
   const siteVal = (s && s.siteUrl) || tgSiteDefault();
+  const rem = (s && s.reminders) || { enabled: false, hours: 0 };
   body.innerHTML = `
     <div class="card">
       <h2>Telegram: бот для кладовщиков</h2>
@@ -3683,6 +3717,20 @@ async function renderAdminTelegram(body){
       <h2>Получатели <span>${recs.length}</span></h2>
       ${inviteHtml}
       ${recHtml}
+    </div>
+    <div class="card">
+      <h2>Очередь и напоминания</h2>
+      <div class="adm-sub" style="line-height:1.55;margin:-4px 0 10px;">
+        Если перемещений много (например, 50 подряд из разных ячеек), сообщения тонут в чате. Поэтому у каждого получателя внизу чата есть кнопка <b>«📋 Очередь»</b> (в группе — команда <code>/queue</code>): один список всего невыполненного по порядку ячеек, с кнопками «✅ №» — можно отмечать прямо из списка. 🔴 — перемещение висит дольше порога «Через сколько часов считать перемещение зависшим» (сейчас ${typeof STALE_HOURS === 'number' ? STALE_HOURS : 4} ч).<br>
+        <b>Напоминания</b> приходят всем получателям, пока очередь не пуста, и только с 09:00 до 21:00 по Ташкенту. Для их работы один раз запустите в редакторе Apps Script функцию <code>authorizeTelegram</code> (теперь она просит ещё и разрешение на запуск по расписанию), затем выпустите новую версию развёртывания.
+      </div>
+      ${rem.error ? `<div class="adm-sub" style="color:var(--red);margin-bottom:8px;">${escapeHtml(rem.error)}</div>` : ''}
+      <div class="adm-row"><div class="adm-main">Напоминания<div class="adm-sub">${rem.enabled ? '✅ включены: раз в ' + (rem.hours || '?') + ' ч' : 'выключены'}</div></div>
+        <div class="adm-actions">
+          <select class="adm-select" id="tgRemHours" style="width:auto;">${[1, 2, 4].map(h => `<option value="${h}" ${(rem.hours || 2) === h ? 'selected' : ''}>каждые ${h} ч</option>`).join('')}</select>
+          <button type="button" class="btn btn-primary btn-small" id="tgRemOn">${rem.enabled ? 'Сохранить' : 'Включить'}</button>
+          ${rem.enabled ? '<button type="button" class="btn btn-ghost btn-small" id="tgRemOff">Выключить</button>' : ''}
+        </div></div>
     </div>
     <div class="card">
       <h2>Запасной вариант: ссылки «QR»</h2>
@@ -3718,6 +3766,15 @@ async function renderAdminTelegram(body){
     try{ await adminCall({ action: 'admin_telegram_recipient_delete', chatId: b.dataset.tgDel }); await redraw(); }
     catch(e){ showToast(e.message || 'Не удалось удалить'); }
   }));
+  const remCall = async (enabled) => {
+    try{
+      await adminCall({ action: 'admin_telegram_remind', enabled, hours: Number(document.getElementById('tgRemHours').value) });
+      showToast(enabled ? 'Напоминания включены' : 'Напоминания выключены');
+    }catch(e){ showToast(e.message || 'Не удалось изменить напоминания'); }
+    redraw();
+  };
+  const remOn = document.getElementById('tgRemOn'); if(remOn) remOn.addEventListener('click', () => remCall(true));
+  const remOff = document.getElementById('tgRemOff'); if(remOff) remOff.addEventListener('click', () => remCall(false));
   const test = document.getElementById('tgTest');
   if(test) test.addEventListener('click', async () => {
     try{ const r = await adminCall({ action: 'admin_telegram_test' }); showToast(`Тест отправлен: ${r.delivered || 0}` + ((r.failed && r.failed.length) ? `, ошибок: ${r.failed.length}` : '')); }
