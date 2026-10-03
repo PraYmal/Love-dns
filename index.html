@@ -1707,7 +1707,7 @@ document.querySelectorAll('.tab-btn').forEach(btn=>{
 document.getElementById('admGear').addEventListener('click', () => document.querySelector('.tab-btn[data-tab="admin"]').click());
 // фоновое автообновление раз в 20 секунд, пока вкладка открыта
 (function pollLoop(){
-  const ms = () => { const a = document.querySelector('.tab-btn.active'); return a && (a.dataset.tab === 'tasks' || a.dataset.tab === 'display') ? 8000 : 20000; };
+  const ms = () => { const a = document.querySelector('.tab-btn.active'); return a && (a.dataset.tab === 'tasks' || a.dataset.tab === 'display') ? (a.dataset.tab === 'tasks' ? 5000 : 8000) : 20000; };
   const tick = () => { if(document.visibilityState === 'visible') loadState(true); setTimeout(tick, ms()); };
   setTimeout(tick, ms());
   document.addEventListener('visibilitychange', () => { if(document.visibilityState === 'visible') loadState(true); });
@@ -4073,7 +4073,7 @@ async function renderAdminTelegram(body){
     }
   }
   const upd = (s && s.updates) || [];
-  const updHtml = upd.length ? upd.map(u => `<div class="adm-row"><div class="adm-main">${escapeHtml(u.what || '—')}<div class="adm-sub">${escapeHtml(fmtDate(u.at))} · чат ${escapeHtml(u.chat || '—')} · ${Number(u.ms) || 0} мс${u.err ? ' · <span style="color:var(--red);">' + escapeHtml(u.err) + '</span>' : ''}</div></div></div>`).join('') : '<div class="adm-sub">Пока ничего не приходило.</div>';
+  const updHtml = upd.length ? upd.map(u => `<div class="adm-row"><div class="adm-main">${escapeHtml(u.what || '—')}<div class="adm-sub">${escapeHtml(fmtDate(u.at))} · чат ${escapeHtml(u.chat || '—')} · ${Number(u.ms) || 0} мс${u.ph ? ' (' + escapeHtml(u.ph) + ')' : ''}${u.err ? ' · <span style="color:var(--red);">' + escapeHtml(u.err) + '</span>' : ''}</div></div></div>`).join('') : '<div class="adm-sub">Пока ничего не приходило.</div>';
   const recs = (s && s.recipients) || [];
   const typeLabel = r => (String(r.chatId).indexOf('-') === 0 || /group/.test(r.type)) ? 'группа' : 'личный чат';
   const recHtml = recs.length ? recs.map(r => {
@@ -4149,6 +4149,8 @@ async function renderAdminTelegram(body){
       <h2>Журнал входящих от Telegram</h2>
       <div class="adm-sub" style="line-height:1.55;margin:-4px 0 10px;">Последние нажатия кнопок и команды, которые дошли до таблицы. Если вы нажали кнопку или набрали команду, а здесь пусто — Telegram не доставляет запросы (смотрите блок «Приём нажатий кнопок» выше и «Ускорение нажатий»). Если запись есть, но с ошибкой — пришлите её мне.</div>
       ${updHtml}
+      <div class="adm-actions" style="margin-top:10px;"><button type="button" class="btn btn-ghost btn-small" id="tgSpeed">Замерить скорость</button></div>
+      <div id="tgSpeedOut" class="adm-sub" style="line-height:1.6;margin-top:8px;"></div>
     </div></div>
     </div>
     <div class="card">
@@ -4182,6 +4184,15 @@ async function renderAdminTelegram(body){
     catch(e){ showToast(e.message || 'Не удалось сохранить'); }
     redraw();
   };
+  document.getElementById('tgSpeed').addEventListener('click', async (ev) => {
+    const out = document.getElementById('tgSpeedOut'); const btn = ev.currentTarget;
+    btn.disabled = true; out.textContent = 'Замеряю…';
+    try{
+      const r = await adminCall({ action: 'admin_telegram_speed' });
+      out.innerHTML = (r.timings || []).map(x => `${escapeHtml(x.name)}: <b>${Number(x.ms)} мс</b>${x.note ? ' · ' + escapeHtml(x.note) : ''}`).join('<br>');
+    }catch(e){ out.textContent = e.message || 'Не удалось замерить'; }
+    btn.disabled = false;
+  });
   const bOn = document.getElementById('tgBoardOn'); if(bOn) bOn.addEventListener('click', () => boardCall(true));
   const bOff = document.getElementById('tgBoardOff'); if(bOff) bOff.addEventListener('click', () => boardCall(false));
   document.getElementById('tgProxySave').addEventListener('click', async () => {
