@@ -2,7 +2,7 @@
 <html lang="ru">
 <head>
 <meta charset="UTF-8">
-<meta name="viewport" content="width=device-width, initial-scale=1.0, maximum-scale=1.0">
+<meta name="viewport" content="width=device-width, initial-scale=1.0, maximum-scale=1.0, viewport-fit=cover">
 <meta name="robots" content="noindex, nofollow, noarchive">
 <script>try{var t=localStorage.getItem('wt_theme');if(t==='light'||t==='dark')document.documentElement.setAttribute('data-theme',t);}catch(e){}</script>
 <title>Учёт перемещений — склад DNS</title>
@@ -492,6 +492,43 @@
     #historyTableWrap td[data-label="Товары"]::before{display:block;margin-bottom:6px;}
     .filt-grid{grid-template-columns:1fr;}
   }
+
+  /* ===== v23: нижнее меню, задачи кладовщика ===== */
+  .ti{display:none;}
+  .show-sm{display:none;}
+  .tbadge{background:var(--red);color:#fff;border-radius:999px;font-size:11px;font-weight:700;padding:1px 6px;margin-left:6px;line-height:1.4;}
+  .dash-strip{display:flex;align-items:center;gap:12px;margin-top:12px;padding:10px 14px;border:1px solid var(--line);border-radius:12px;background:var(--charcoal-800);}
+  #admGear.on{border-color:var(--orange);color:var(--orange);}
+  .task-sum{font-size:14px;line-height:1.5;}
+  .task{background:var(--charcoal-900);border:1px solid var(--line);border-left:4px solid var(--orange);border-radius:12px;padding:14px;margin-bottom:12px;}
+  .task.stale{border-left-color:var(--red);}
+  .task-head{display:flex;flex-wrap:wrap;align-items:center;gap:8px;margin-bottom:8px;}
+  .task-head .cell-tag{font-size:16px;padding:6px 11px;}
+  .task-head .code{font-size:12px;font-family:"IBM Plex Mono",ui-monospace,monospace;}
+  .tag-disp{background:var(--orange-dim, rgba(255,106,19,.18));color:var(--orange-soft);border-radius:999px;font-size:11.5px;font-weight:600;padding:2px 9px;}
+  .task-line{display:flex;gap:10px;align-items:baseline;padding:7px 0;border-top:1px solid var(--line);font-size:14px;line-height:1.4;word-break:break-word;}
+  .task-line:first-of-type{border-top:0;}
+  .task-line .q{color:var(--orange-soft);min-width:2.4em;font-size:16px;}
+  .task-meta{font-size:12.5px;color:var(--text-dim);margin:8px 0 12px;}
+  .task-done{display:block;width:100%;max-width:460px;min-height:54px;font:inherit;font-size:17px;font-weight:700;border-radius:12px;border:1px solid var(--green);background:var(--green-dim);color:var(--green);cursor:pointer;}
+  .task-done.armed{background:var(--green);color:#0d1a12;}
+  .task-done:disabled{opacity:.6;}
+  .task-cancel{background:none;border:none;color:var(--text-dim);text-decoration:underline;padding:12px 4px 2px;cursor:pointer;font-size:13px;}
+  @media (max-width:640px){
+    :root{--navh:calc(58px + env(safe-area-inset-bottom));}
+    .show-sm{display:inline-flex;}
+    nav.tabs{position:fixed;left:0;right:0;bottom:0;top:auto;margin:0;padding:0 0 env(safe-area-inset-bottom);gap:0;display:flex;overflow:visible;background:var(--charcoal-900);border-top:1px solid var(--line);border-bottom:0;z-index:120;}
+    nav.tabs button{flex:1 1 0;min-width:0;display:flex;flex-direction:column;align-items:center;justify-content:center;gap:3px;padding:8px 1px 7px;font-size:10.5px;font-weight:600;letter-spacing:-.1px;border-bottom:0;border-top:2px solid transparent;margin:0;position:relative;}
+    nav.tabs button.active{border-top-color:var(--orange);}
+    nav.tabs .tab-admin{display:none;}
+    nav.tabs .ti{display:block;width:22px;height:22px;}
+    nav.tabs .tl{white-space:nowrap;}
+    .tbadge{position:absolute;top:3px;left:calc(50% + 4px);margin:0;}
+    body{padding-bottom:calc(var(--navh) + 14px);}
+    body.has-cart-bar{padding-bottom:calc(var(--navh) + 84px);}
+    .cart-bar{bottom:var(--navh);padding-bottom:10px;}
+    .toast{bottom:calc(var(--navh) + 12px);}
+  }
 </style>
 </head>
 <body>
@@ -510,23 +547,32 @@
       <p>Отправитель → получатель, с историей и отметкой о завершении</p>
     </div>
     <button class="btn btn-ghost btn-small" id="themeBtn" title="Светлая / тёмная тема" style="margin-right:6px;">☀</button>
+    <button class="btn btn-ghost btn-small show-sm" id="admGear" title="Админка" aria-label="Админка" style="margin-right:6px;">⚙</button>
     <button class="btn btn-ghost btn-small" id="refreshBtn" title="Подтянуть последние изменения" aria-label="Обновить">⟳<span class="hide-sm"> Обновить</span></button>
   </header>
 
-  <nav class="tabs">
-    <button class="tab-btn active" data-tab="display">Выставление</button>
-    <button class="tab-btn" data-tab="history">История</button>
-    <button class="tab-btn" data-tab="inventory">Остатки</button>
-    <button class="tab-btn" data-tab="qr">QR-коды</button>
-    <button class="tab-btn" data-tab="admin">⚙ Админка</button>
+  <nav class="tabs" id="mainNav">
+    <button class="tab-btn active" data-tab="display"><svg class="ti" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="1.8" stroke-linecap="round" stroke-linejoin="round" aria-hidden="true"><rect x="3" y="3" width="7" height="7" rx="1.5"/><rect x="14" y="3" width="7" height="7" rx="1.5"/><rect x="3" y="14" width="7" height="7" rx="1.5"/><rect x="14" y="14" width="7" height="7" rx="1.5"/></svg><span class="tl">Выставление</span></button>
+    <button class="tab-btn" data-tab="tasks"><svg class="ti" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="1.8" stroke-linecap="round" stroke-linejoin="round" aria-hidden="true"><path d="M10 6h10M10 12h10M10 18h10"/><path d="M3.5 6l1.5 1.5L7.5 4.5M3.5 12l1.5 1.5L7.5 10.5M3.5 18l1.5 1.5L7.5 16.5"/></svg><span class="tl">Задачи</span><span class="tbadge" id="tasksBadge" style="display:none;"></span></button>
+    <button class="tab-btn" data-tab="history"><svg class="ti" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="1.8" stroke-linecap="round" stroke-linejoin="round" aria-hidden="true"><circle cx="12" cy="12" r="9"/><path d="M12 7v5l3 2"/></svg><span class="tl">История</span></button>
+    <button class="tab-btn" data-tab="inventory"><svg class="ti" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="1.8" stroke-linecap="round" stroke-linejoin="round" aria-hidden="true"><path d="M21 8l-9-5-9 5v8l9 5 9-5z"/><path d="M3 8l9 5 9-5M12 13v8"/></svg><span class="tl">Остатки</span></button>
+    <button class="tab-btn" data-tab="qr"><svg class="ti" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="1.8" stroke-linecap="round" stroke-linejoin="round" aria-hidden="true"><rect x="3" y="3" width="6" height="6"/><rect x="15" y="3" width="6" height="6"/><rect x="3" y="15" width="6" height="6"/><path d="M15 15h2v2h-2zM19 15h2v2M15 19h2v2M19 19h2v2"/></svg><span class="tl">QR-коды</span></button>
+    <button class="tab-btn tab-admin" data-tab="admin"><span class="tl">⚙ Админка</span></button>
   </nav>
+
+  <!-- ================= TAB: TASKS ================= -->
+  <div class="panel" id="tab-tasks">
+    <div class="card">
+      <h2>Задачи кладовщика <span>что и из какой ячейки нужно перенести</span></h2>
+      <div id="tasksSum" class="task-sum"></div>
+      <div class="search-box" style="margin-top:12px;"><input type="text" id="tasksSearch" placeholder="Поиск по ячейке, артикулу, сотруднику..."></div>
+      <div class="employee-list" id="tasksSort" style="margin-bottom:4px;"></div>
+    </div>
+    <div id="tasksWrap"></div>
+  </div>
 
   <!-- ================= TAB: HISTORY ================= -->
   <div class="panel" id="tab-history">
-    <div class="card pick-card" id="pickListCard" style="display:none;">
-      <h2>🛒 К выставлению на витрину <span>для кладовщика: что из какой ячейки взять</span></h2>
-      <div id="pickListWrap"></div>
-    </div>
     <div class="card">
       <h2>История перемещений</h2>
       <label class="muted" style="display:block;margin-bottom:6px;">Сотрудник</label>
@@ -624,11 +670,11 @@
     <div class="card">
       <h2>Что выставить <span>товары, которых нет на витрине, и ячейки, где они лежат</span></h2>
       <details class="help"><summary>Как это работает</summary><p>Список берётся из листа «vitrina» (выгрузка «Выставление товара на витрину» из 1С), ячейки — из листа «ostatki» с учётом наших переносов.
-        Нажмите на ячейку у товара, укажите количество — создастся обычное перемещение «ячейка → Витрина», кладовщик увидит его во вкладке «История».</p></details>
+        Нажмите на ячейку у товара, укажите количество — создастся обычное перемещение «ячейка → Витрина», кладовщик увидит его во вкладке «Задачи».</p></details>
       <label class="muted" style="display:block;margin:10px 0 6px;">Сотрудник</label>
       <div class="employee-list" id="displayEmployeeList"></div>
       <div id="dataWarn"></div>
-      <details class="dash" id="dashBox"><summary id="dashHead"><span class="dash-txt">Сводка загружается…</span></summary><div id="displaySummary"></div></details>
+      <div class="dash-strip" id="dashHead"><span class="dash-txt">Сводка загружается…</span></div>
     </div>
 
     <div class="card">
@@ -1608,6 +1654,11 @@ document.querySelectorAll('.tab-btn').forEach(btn=>{
     if(typeof updateCartBar === 'function') updateCartBar();
     // при переходе на "История" или "Остатки" подтягиваем свежие данные —
     // это могли изменить другие сотрудники с других устройств
+    { const g = document.getElementById('admGear'); if(g) g.classList.toggle('on', btn.dataset.tab === 'admin'); }
+    if(btn.dataset.tab === 'tasks'){
+      renderTasks();
+      await loadState(true);
+    }
     if(btn.dataset.tab === 'history'){
       await loadState(true);
     }
@@ -1631,6 +1682,7 @@ document.querySelectorAll('.tab-btn').forEach(btn=>{
   });
 });
 
+document.getElementById('admGear').addEventListener('click', () => document.querySelector('.tab-btn[data-tab="admin"]').click());
 // фоновое автообновление раз в 20 секунд, пока вкладка открыта
 setInterval(()=>{ if(document.visibilityState === 'visible') loadState(true); }, 20000);
 
@@ -1960,39 +2012,101 @@ function articleNames(){
   return map;
 }
 
-// список для кладовщика: ждущие переносы на витрину, ОДНА карточка на ячейку-источник
-// (товары из нескольких заявок по одной ячейке сливаются в одну строку-список)
-function renderPickList(){
-  const card = document.getElementById('pickListCard');
-  const wrap = document.getElementById('pickListWrap');
-  const pend = (state.transfers || []).filter(t => t.status === 'pending' && isDisplayDest(t.destCell));
-  if(pend.length === 0){ card.style.display = 'none'; wrap.innerHTML = ''; return; }
-  card.style.display = 'block';
+// ---------- вкладка «Задачи»: что кладовщику сделать ----------
+// Все ждущие перемещения, по одной карточке на пару «ячейка-источник → ячейка-получатель».
+// Крупная кнопка «Выполнено» срабатывает со второго нажатия (защита от случайного тапа).
+let tasksSort = 'cell', tasksQuery = '', tasksSig = null, tasksArmed = null, tasksArmTimer = null;
+function taskAge_(iso){
+  const m = Math.max(0, Math.round((Date.now() - new Date(iso).getTime()) / 60000));
+  if(m < 1) return 'только что';
+  if(m < 60) return m + ' мин назад';
+  const h = Math.floor(m / 60);
+  if(h < 24) return h + ' ч' + (m % 60 ? ' ' + (m % 60) + ' мин' : '') + ' назад';
+  return Math.floor(h / 24) + ' д назад';
+}
+function renderTasks(){
+  const wrap = document.getElementById('tasksWrap');
+  if(!wrap) return;
+  const pend = (state.transfers || []).filter(t => t.status === 'pending');
+  const bd = document.getElementById('tasksBadge');
+  if(bd){ bd.textContent = pend.length > 99 ? '99+' : String(pend.length); bd.style.display = pend.length ? '' : 'none'; }
+  const staleMs = STALE_HOURS * 3600 * 1000;
+  const staleCnt = pend.filter(t => Date.now() - new Date(t.createdAt).getTime() > staleMs).length;
+  const today = new Date().toDateString();
+  const doneToday = (state.transfers || []).filter(t => t.status === 'done' && t.completedAt && new Date(t.completedAt).toDateString() === today).length;
   const names = articleNames();
-  const byCell = {};
-  pend.forEach(t => { (byCell[t.sourceCell] = byCell[t.sourceCell] || []).push(t); });
-  wrap.innerHTML = Object.keys(byCell).sort().map(cell => {
-    const trs = byCell[cell].slice().sort((a,b) => new Date(a.createdAt) - new Date(b.createdAt));
-    const qtyByArticle = {};
-    trs.forEach(t => t.articles.forEach(a => { qtyByArticle[a.article] = (qtyByArticle[a.article] || 0) + a.qty; }));
-    const who = [...new Set(trs.map(t => t.employee).filter(Boolean))].join(', ') || '—';
-    const oldest = trs[0].createdAt;
-    const isStale = (Date.now() - new Date(oldest).getTime()) > STALE_HOURS * 3600 * 1000;
-    const ids = trs.map(t => t.id).join(',');
-    return `<div class="pick-tr ${isStale ? 'stale' : ''}" style="margin-top:12px;">
-      <div class="pick-cell" style="margin:0 0 8px;"><button type="button" class="cell-tag" data-qr-cell="${escapeAttr(cell)}">${escapeHtml(cell)}</button> <span class="arrow-inline">→</span> <b>${DISPLAY_CELL}</b></div>
-      ${Object.entries(qtyByArticle).map(([article, qty]) => `<div class="pick-item-line"><span class="sku sku-lg">${escapeHtml(article)}</span><b class="qty-x">×${qty}</b>${escapeHtml(names[article] || '')}</div>`).join('')}
-      <div class="muted" style="font-size:12px;margin:8px 0;">${escapeHtml(who)} · ${fmtDate(oldest)}${isStale ? ` · <span style="color:var(--red);">висит > ${STALE_HOURS} ч</span>` : ''}</div>
-      <div class="adm-actions">
-        <button type="button" class="btn btn-done btn-small" data-pick-complete="${escapeAttr(ids)}">Выставлено — завершить</button>
-        <button type="button" class="btn btn-danger btn-small" data-pick-cancel="${escapeAttr(ids)}">Отменить</button>
+  const q = tasksQuery.toLowerCase().trim();
+  let list = pend;
+  if(q) list = list.filter(t => (t.sourceCell + ' ' + cellCode(t.sourceCell) + ' ' + t.destCell + ' ' + (t.employee || '') + ' ' + t.articles.map(a => a.article + ' ' + (names[a.article] || '')).join(' ')).toLowerCase().includes(q));
+  const sum = document.getElementById('tasksSum');
+  if(sum){
+    const pcs = pend.reduce((a,t) => a + t.articles.reduce((x,y) => x + y.qty, 0), 0);
+    const cellsN = new Set(pend.map(t => t.sourceCell)).size;
+    sum.innerHTML = pend.length
+      ? `<b>${pend.length}</b> ${pend.length === 1 ? 'перемещение' : 'перемещений'} · <b>${cellsN}</b> ${cellsN === 1 ? 'ячейка' : 'ячеек'} · <b>${pcs}</b> шт.${staleCnt ? ` · <span style="color:var(--red);">висят > ${STALE_HOURS} ч: <b>${staleCnt}</b></span>` : ''}<span class="muted" style="display:block;font-size:12.5px;">сегодня выполнено: ${doneToday}</span>`
+      : `Все перемещения выполнены<span class="muted" style="display:block;font-size:12.5px;">сегодня выполнено: ${doneToday}</span>`;
+  }
+  const sortWrap = document.getElementById('tasksSort');
+  if(sortWrap && sortWrap.dataset.sel !== tasksSort){
+    sortWrap.dataset.sel = tasksSort;
+    sortWrap.innerHTML = [['cell','По ячейкам'],['old','Сначала старые']].map(([v,l]) => `<button type="button" class="employee-btn ${tasksSort === v ? 'selected' : ''}" data-tsort="${v}">${l}</button>`).join('');
+    sortWrap.querySelectorAll('[data-tsort]').forEach(b => b.addEventListener('click', () => { tasksSort = b.dataset.tsort; tasksSig = null; renderTasks(); }));
+  }
+  const sig = [tasksSort, q, Object.keys(names).length, list.map(t => t.id).join(',')].join('|');
+  if(sig === tasksSig) return;
+  tasksSig = sig; tasksArmed = null;
+  if(list.length === 0){
+    wrap.innerHTML = `<div class="card"><div class="empty-state">${pend.length ? 'Ничего не найдено.' : '✅ Задач нет — все перемещения выполнены.'}</div></div>`;
+    return;
+  }
+  const groups = {};
+  list.forEach(t => { const k = t.sourceCell + '→' + t.destCell; (groups[k] = groups[k] || { src: t.sourceCell, dst: t.destCell, trs: [] }).trs.push(t); });
+  let arr = Object.values(groups);
+  arr.forEach(g => { g.trs.sort((a,b) => new Date(a.createdAt) - new Date(b.createdAt)); g.oldest = g.trs[0].createdAt; });
+  if(tasksSort === 'old') arr.sort((a,b) => new Date(a.oldest) - new Date(b.oldest));
+  else arr.sort((a,b) => String(cellCode(a.src)).localeCompare(String(cellCode(b.src)), 'en', { numeric: true }));
+  wrap.innerHTML = arr.map(g => {
+    const qty = {};
+    g.trs.forEach(t => t.articles.forEach(a => { qty[a.article] = (qty[a.article] || 0) + a.qty; }));
+    const who = [...new Set(g.trs.map(t => t.employee).filter(Boolean))].join(', ') || '—';
+    const stale = Date.now() - new Date(g.oldest).getTime() > staleMs;
+    const ids = g.trs.map(t => t.id).join(',');
+    const code = cellCode(g.src);
+    return `<div class="task ${stale ? 'stale' : ''}">
+      <div class="task-head">
+        <button type="button" class="cell-tag" data-qr-cell="${escapeAttr(g.src)}">${escapeHtml(g.src)}</button>${code !== g.src ? `<span class="muted code">${escapeHtml(code)}</span>` : ''}
+        <span class="arrow-inline">→</span>
+        <button type="button" class="cell-tag" data-qr-cell="${escapeAttr(g.dst)}">${escapeHtml(g.dst)}</button>
+        ${isDisplayDest(g.dst) ? '<span class="tag-disp">витрина</span>' : ''}
       </div>
+      ${Object.entries(qty).map(([article, n]) => `<div class="task-line"><b class="q">×${n}</b><span><span class="sku">${escapeHtml(article)}</span> ${escapeHtml(names[article] || '')}</span></div>`).join('')}
+      <div class="task-meta">${escapeHtml(who)} · ${fmtDate(g.oldest)} · ${taskAge_(g.oldest)}${stale ? ` · <span style="color:var(--red);font-weight:600;">висит > ${STALE_HOURS} ч</span>` : ''}</div>
+      <button type="button" class="task-done" data-task-done="${escapeAttr(ids)}">✅ Выполнено</button>
+      <button type="button" class="task-cancel" data-task-cancel="${escapeAttr(ids)}">Отменить</button>
     </div>`;
   }).join('');
   wrap.querySelectorAll('[data-qr-cell]').forEach(b => b.addEventListener('click', () => openQrModal(b.dataset.qrCell)));
-  wrap.querySelectorAll('[data-pick-complete]').forEach(b => b.addEventListener('click', () => completeMany(b.dataset.pickComplete.split(','))));
-  wrap.querySelectorAll('[data-pick-cancel]').forEach(b => b.addEventListener('click', () => { if(confirm('Отменить все перемещения из этой ячейки?')) cancelMany(b.dataset.pickCancel.split(',')); }));
+  wrap.querySelectorAll('[data-task-done]').forEach(b => b.addEventListener('click', async () => {
+    const ids = b.dataset.taskDone;
+    if(tasksArmed !== ids){
+      wrap.querySelectorAll('.task-done.armed').forEach(x => { x.classList.remove('armed'); x.textContent = '✅ Выполнено'; });
+      tasksArmed = ids; b.classList.add('armed'); b.textContent = 'Нажмите ещё раз — выполнено';
+      clearTimeout(tasksArmTimer);
+      tasksArmTimer = setTimeout(() => { if(tasksArmed === ids){ tasksArmed = null; b.classList.remove('armed'); b.textContent = '✅ Выполнено'; } }, 4000);
+      return;
+    }
+    clearTimeout(tasksArmTimer); tasksArmed = null; b.disabled = true; b.textContent = 'Отмечаю…';
+    await completeMany(ids.split(','));
+    tasksSig = null; renderTasks();
+  }));
+  wrap.querySelectorAll('[data-task-cancel]').forEach(b => b.addEventListener('click', async () => {
+    if(!confirm('Отменить эти перемещения?')) return;
+    await cancelMany(b.dataset.taskCancel.split(','));
+    tasksSig = null; renderTasks();
+  }));
 }
+function renderPickList(){ renderTasks(); }
+document.getElementById('tasksSearch').addEventListener('input', e => { tasksQuery = e.target.value; renderTasks(); });
 
 async function completeMany(ids){
   try{
@@ -2545,8 +2659,38 @@ let lastDisplaySig = null;
 
 function pctOf(it){ return it.total > 0 ? it.on / it.total : 0; }
 
-function renderDisplaySummary(scope, calc, tiles, caption){
-  const summary = document.getElementById('displaySummary');
+function renderDisplaySummary(scope, calc, caption){
+  // короткая строка над списком: считается по тем же настройкам, что и список
+  const pos = calc === 'pos';
+  const real = scope.filter(i => i.total > 0);
+  const totalPcs = pos ? real.length : scope.reduce((a,i) => a + i.total, 0);
+  const dispPos = real.filter(i => i.on > 0).length;
+  const onPcs = pos ? dispPos : scope.reduce((a,i) => a + i.on, 0);
+  const pct = totalPcs > 0 ? Math.min(1, onPcs / totalPcs) : 0;
+  const dh = document.getElementById('dashHead');
+  if(dh) dh.innerHTML = `<span class="dash-pct">${Math.round(pct * 100)}%</span><span class="dash-txt">выставлено · ${pos ? dispPos + ' из ' + real.length + ' поз.' : onPcs + ' из ' + totalPcs + ' шт.'}${caption ? '<br>' + escapeHtml(caption) : ''}</span>`;
+}
+
+// плитки под кольцом (используются в админке: раздел «Витрина»)
+function displayTilesHtml(scope, calc){
+  const sAll = scope.filter(it => it.notOn > 0);
+  const totalNeed = sAll.reduce((a,it)=>a+it.need,0);
+  const totalQueued = sAll.reduce((a,it)=>a+Math.min(it.queued,it.notOn),0);
+  const withCell = sAll.filter(it => it.need > 0 && it.cells.length > 0).length;
+  const zeroCount = sAll.filter(it => it.on === 0 && it.need > 0).length;
+  const partialCount = sAll.filter(it => it.on > 0 && it.need > 0).length;
+  const fullyPos = scope.filter(it => it.total > 0 && it.notOn === 0).length;
+  return `
+      <div class="disp-stat"><div class="v" style="${zeroCount ? 'color:var(--red)' : ''}">${zeroCount}</div><div class="l">позиций не выставлено совсем (0 шт.)</div></div>
+      <div class="disp-stat"><div class="v">${partialCount}</div><div class="l">позиций выставлено частично</div></div>
+      ${calc === 'pos'
+        ? `<div class="disp-stat"><div class="v">${fullyPos}</div><div class="l">позиций выставлено полностью</div></div>`
+        : `<div class="disp-stat"><div class="v">${totalNeed}</div><div class="l">шт. не на витрине</div></div>`}
+      <div class="disp-stat"><div class="v">${withCell}</div><div class="l">позиций с известной ячейкой</div></div>
+      <div class="disp-stat"><div class="v">${totalQueued}</div><div class="l">шт. ждут кладовщика</div></div>`;
+}
+
+function summaryBodyHtml(scope, calc, tiles, caption){
   // «Выставлено X%» — по штукам: сумма «на витрине» / сумма «остаток» по всей выгрузке.
   // Это моё определение; формулу «Витрина % общий» из вашего Power BI прочитать не удалось,
   // поэтому цифра может отличаться от неё.
@@ -2561,8 +2705,6 @@ function renderDisplaySummary(scope, calc, tiles, caption){
   const fully = real.filter(i => i.notOn === 0).length;
   const partialPos = real.filter(i => i.on > 0 && i.notOn > 0).length;
   const unit = pos ? 'поз.' : 'шт.';
-  const dh = document.getElementById('dashHead');
-  if(dh) dh.innerHTML = `<span class="dash-pct">${Math.round(pct * 100)}%</span><span class="dash-txt">выставлено · ${pos ? dispPos + ' из ' + real.length + ' поз.' : onPcs + ' из ' + totalPcs + ' шт.'}${caption ? '<br>' + escapeHtml(caption) : ''}</span>`;
   const R = 50, C = 2 * Math.PI * R;
   const off = C * (1 - pct);
   const cats = {};
@@ -2573,7 +2715,7 @@ function renderDisplaySummary(scope, calc, tiles, caption){
     else { cats[k].on += i.on; cats[k].total += i.total; }
   });
   const catRows = Object.entries(cats).filter(([,c]) => c.total > 0).sort((a,b) => (a[1].on / a[1].total) - (b[1].on / b[1].total));
-  summary.innerHTML = `
+  return `
     <div class="ring-wrap">
       <div class="ring" title="${pos ? 'Позиций, у которых на витрине есть хотя бы 1 шт.' : 'Выставлено штук от общего остатка'}">
         <svg viewBox="0 0 120 120"><circle class="track" cx="60" cy="60" r="${R}" fill="none" stroke-width="11"/>
@@ -2602,7 +2744,7 @@ function renderDisplay(){
   fillOstatkiNames();
   const dw = document.getElementById('dataWarn');
   if(dw) dw.innerHTML = dataWarnHtml();
-  const summary = document.getElementById('displaySummary');
+  const summary = document.getElementById('dashHead');
 
   if(vitrinaLoadError){
     summary.innerHTML = '';
@@ -2654,14 +2796,7 @@ function renderDisplay(){
   const zeroCount = sAll.filter(it => it.on === 0 && it.need > 0).length;
   const partialCount = sAll.filter(it => it.on > 0 && it.need > 0).length;
   const fullyPos = scope.filter(it => it.total > 0 && it.notOn === 0).length;
-  renderDisplaySummary(scope, calc, `
-      <div class="disp-stat"><div class="v" style="${zeroCount ? 'color:var(--red)' : ''}">${zeroCount}</div><div class="l">позиций не выставлено совсем (0 шт.)</div></div>
-      <div class="disp-stat"><div class="v">${partialCount}</div><div class="l">позиций выставлено частично</div></div>
-      ${calc === 'pos'
-        ? `<div class="disp-stat"><div class="v">${fullyPos}</div><div class="l">позиций выставлено полностью</div></div>`
-        : `<div class="disp-stat"><div class="v">${totalNeed}</div><div class="l">шт. не на витрине</div></div>`}
-      <div class="disp-stat"><div class="v">${withCell}</div><div class="l">позиций с известной ячейкой</div></div>
-      <div class="disp-stat"><div class="v">${totalQueued}</div><div class="l">шт. ждут кладовщика</div></div>`, capParts.join(' · '));
+  renderDisplaySummary(scope, calc, capParts.join(' · '));
 
   const cats = [...new Set(all.map(it => it.cat1 || 'Без категории'))].sort();
   const catWrap = document.getElementById('displayCategoryFilter');
@@ -2972,12 +3107,13 @@ function renderAdmin(){
   }
   loginWrap.style.display = 'none';
   mainWrap.style.display = 'block';
-  const sections = [['overview','Обзор'],['data','Данные'],['report','Отчёт'],['diag','Проблемы'],['telegram','Telegram'],['employees','Сотрудники'],['transfers','Перемещения'],['settings','Настройки'],['password','Пароль']];
+  const sections = [['overview','Обзор'],['showcase','Витрина'],['data','Данные'],['report','Отчёт'],['diag','Проблемы'],['telegram','Telegram'],['employees','Сотрудники'],['transfers','Перемещения'],['settings','Настройки'],['password','Пароль']];
   const nav = document.getElementById('adminSections');
   nav.innerHTML = sections.map(([id,label]) => `<button type="button" class="employee-btn ${adminSection === id ? 'selected' : ''}" data-adm-sec="${id}">${label}</button>`).join('');
   nav.querySelectorAll('[data-adm-sec]').forEach(b => b.addEventListener('click', () => { adminSection = b.dataset.admSec; renderAdmin(); }));
   const body = document.getElementById('adminSectionBody');
   if(adminSection === 'overview') renderAdminOverview(body);
+  else if(adminSection === 'showcase') renderAdminShowcase(body);
   else if(adminSection === 'employees') renderAdminEmployees(body);
   else if(adminSection === 'transfers') renderAdminTransfers(body);
   else if(adminSection === 'settings') renderAdminSettings(body);
@@ -2986,6 +3122,34 @@ function renderAdmin(){
   else if(adminSection === 'telegram') renderAdminTelegram(body);
   else if(adminSection === 'diag') renderAdminDiag(body);
   else renderAdminPassword(body);
+}
+
+let admShowCalc = 'pcs';
+function renderAdminShowcase(body){
+  if(vitrinaLoadError){ body.innerHTML = `<div class="card"><div class="empty-state">Не удалось загрузить лист «vitrina»: ${escapeHtml(vitrinaLoadError)}. Загрузите выгрузку в разделе «Данные».</div></div>`; return; }
+  if(!vitrinaLoaded){ body.innerHTML = '<div class="card"><div class="empty-state">Лист «vitrina» ещё загружается…</div></div>'; return; }
+  const { byArticle, pendingToDisplay } = buildDisplayIndex();
+  const universe = vitrinaItems.map(it => {
+    const queued = pendingToDisplay[it.code] || 0;
+    return Object.assign({}, it, { queued, need: Math.max(0, it.notOn - queued), cells: byArticle[it.code] || [] });
+  });
+  const scope = universe.filter(it => it.total > 0);
+  const top = scope.filter(it => it.notOn > 0).sort((a,b) => b.notOn - a.notOn).slice(0, 10);
+  body.innerHTML = `
+    <div class="card">
+      <h2>Выставление на витрину <span>вся выгрузка «vitrina», без фильтров списка</span></h2>
+      <div class="employee-list" id="admShowCalc" style="margin-bottom:12px;">
+        <button type="button" class="employee-btn ${admShowCalc === 'pcs' ? 'selected' : ''}" data-calc="pcs">По штукам</button>
+        <button type="button" class="employee-btn ${admShowCalc === 'pos' ? 'selected' : ''}" data-calc="pos">По позициям</button>
+      </div>
+      ${summaryBodyHtml(scope, admShowCalc, displayTilesHtml(scope, admShowCalc), '')}
+      <p class="muted" style="font-size:12.5px;margin-top:12px;">Загружено: ${escapeHtml(fmtUploaded('vitrina'))}. «По позициям» — позиция выставлена, если на витрине есть хотя бы 1 шт.</p>
+    </div>
+    <div class="card">
+      <h2>Больше всего не выставлено <span>10 позиций по количеству штук</span></h2>
+      ${top.length ? top.map(it => `<div class="adm-row"><div class="adm-main"><span class="sku">${escapeHtml(it.code)}</span> ${escapeHtml(it.name)}<div class="adm-sub">на витрине ${it.on} из ${it.total}${it.queued ? ` · у кладовщика: ${it.queued}` : ''}</div></div><b>${it.notOn}</b></div>`).join('') : '<div class="empty-state">Всё выставлено.</div>'}
+    </div>`;
+  body.querySelectorAll('#admShowCalc [data-calc]').forEach(b => b.addEventListener('click', () => { admShowCalc = b.dataset.calc; renderAdminShowcase(body); }));
 }
 
 function renderAdminOverview(body){
@@ -4103,13 +4267,6 @@ fetchVitrina();
 
 // ---------- v22: запоминаем вкладку и состояние сводки ----------
 (function(){
-  const box = document.getElementById('dashBox');
-  if(box){
-    let open = false;
-    try { const v = localStorage.getItem('wt_dash'); if(v === '1') open = true; else if(v === '0') open = false; } catch(e) {}
-    box.open = open;
-    box.addEventListener('toggle', () => { try { localStorage.setItem('wt_dash', box.open ? '1' : '0'); } catch(e) {} });
-  }
   try {
     const t = localStorage.getItem('wt_tab');
     if(t && t !== 'display'){ const b = document.querySelector('.tab-btn[data-tab="' + t + '"]'); if(b) b.click(); }
