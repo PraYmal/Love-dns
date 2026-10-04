@@ -296,6 +296,9 @@
   .alerts-opt input{margin-top:3px;width:18px;height:18px;flex:none;}
   .outbox-bar{position:fixed;left:12px;right:12px;top:calc(env(safe-area-inset-top,0px) + 8px);z-index:60;display:flex;align-items:center;gap:8px;background:#3a2a1a;border:1px solid var(--orange);color:var(--orange-soft);border-radius:10px;padding:8px 10px;font-size:13.5px;box-shadow:0 4px 18px rgba(0,0,0,.35);}
   .outbox-bar[hidden]{display:none;}
+  .net-bar{position:sticky;top:0;z-index:58;margin:0 0 10px;padding:9px 12px;border-radius:10px;background:var(--charcoal-800);border:1px solid var(--orange);color:var(--orange-soft);font-size:13px;line-height:1.4;}
+  .net-bar[hidden]{display:none;}
+  body.net-off .outbox-bar{top:calc(env(safe-area-inset-top,0px) + 64px);}
   .outbox-bar span{flex:1;min-width:0;}
   .outbox-bar button{background:transparent;border:1px solid var(--orange);color:inherit;border-radius:6px;padding:6px 10px;font-size:13px;cursor:pointer;min-height:34px;}
   .outbox-item{border:1px solid var(--line);border-radius:8px;padding:8px 10px;margin-bottom:8px;font-size:13.5px;}
@@ -350,6 +353,7 @@
   .disp-meta{font-size:12px;color:var(--text-dim);margin-top:3px;font-family:ui-monospace,Menlo,monospace;}
   .disp-need{margin-top:8px;font-size:13px;color:var(--text-dim);}
   .disp-need b{color:var(--text);font-size:15px;}
+  .disp-claim{margin-top:8px;padding:8px 10px;border-radius:10px;background:var(--orange-dim);color:var(--orange-soft);font-size:13px;line-height:1.45;}
   .disp-queued{display:inline-block;margin-left:8px;padding:2px 8px;border-radius:12px;font-size:11.5px;font-weight:700;background:var(--orange-dim);color:var(--orange-soft);}
   .disp-cells{display:flex;flex-wrap:wrap;gap:6px;margin-top:10px;}
   .disp-cell-btn{
@@ -677,6 +681,7 @@
 <script>document.getElementById('noJsBanner').style.display='none';</script>
 <div class="wrap">
 
+  <div class="net-bar" id="netBar" role="status" aria-live="polite" hidden></div>
   <header class="app-header">
     <div class="logo-mark">DNS</div>
     <div style="flex:1;">
@@ -1469,6 +1474,14 @@ const APPS_SCRIPT_URL = 'https://script.google.com/macros/s/AKfycbyWC4NQoQRhUOnJ
 // выпадающий список не был пустым, пока грузится ответ сервера.
 const DEFAULT_EMPLOYEES = ['Бобур', 'Джавохир', 'Руслан', 'Толик', 'Султан', 'Ориф'];
 const EMPLOYEES_CACHE_KEY = 'wt_employees_cache';
+const CFG_CACHE_KEY = 'wt_cfg_cache';
+// v36: состояние связи и очередь действий без связи (объявлено рано: apiPost использует их с самого старта)
+let netOk = true, netFails = 0;
+let stateLoaded = false, stateFromCache = false, stateAt = 0, stateSaveTimer = null, stateSaveRows = null;
+const netStale_ = {};          // лист -> true: показаны сохранённые данные, свежие получить не удалось
+const OPQ_KEY = 'wt_opq';
+let opq = [];                  // действия «Выполнено / Отменить / Отложить», сделанные без связи: [{id, k, p, label, at, tries}]
+try { const o = JSON.parse(localStorage.getItem(OPQ_KEY) || '[]'); if(Array.isArray(o)) opq = o.filter(x => x && x.id && x.k && x.p && x.p.action); } catch(e) {}
 let EMPLOYEES = DEFAULT_EMPLOYEES.slice();
 let appSettings = {};          // настройки с сервера (лист Settings)
 let cellsReady = null;
@@ -1515,6 +1528,7 @@ function empLostAuth_(name){
 function empSelect_(name){
   selectedEmployee = name || null;
   try { if(selectedEmployee) localStorage.setItem(EMPLOYEE_STORAGE_KEY, selectedEmployee); else localStorage.removeItem(EMPLOYEE_STORAGE_KEY); } catch(err) {}
+  try { scheduleClaims_(300); } catch(err) {}
   renderEmployeeList();
   try { renderCart(); } catch(e) {}
 }
@@ -1670,10 +1684,21 @@ async function loadSheetRows(name, force){
     const c = await scGet(name);
     if(c && c.at === at && Array.isArray(c.rows) && c.rows.length && Date.now() - (c.savedAt || 0) < SC_TTL_MS) return { rows: c.rows, at, cached: true, t: c.savedAt };
   }
-  const res = await fetch(`${APPS_SCRIPT_URL}?data=${name}`);
-  if(!res.ok) throw new Error('HTTP ' + res.status);
-  const payload = await res.json();
+  let payload;
+  try{
+    const res = await fetchTimeout_(`${APPS_SCRIPT_URL}?data=${name}`, 60000);
+    if(!res.ok) throw new Error('HTTP ' + res.status);
+    payload = await res.json();
+    netMark_(true);
+  }catch(e){
+    netMark_(false);
+    // нет связи: берём последнюю сохранённую выгрузку (даже если она «старая»), лишь бы пользоваться можно было
+    const c = await scGet(name);
+    if(c && Array.isArray(c.rows) && c.rows.length){ netStale_[name] = true; return { rows: c.rows, at: c.at || at, cached: true, stale: true, t: c.savedAt || 0 }; }
+    throw e;
+  }
   if(payload && payload.error) throw new Error(payload.error);
+  delete netStale_[name];
   return { rows: payload.rows || [], at, cached: false, t: Date.now() };
 }
 // кладём в кэш только то, что успешно разобрано
@@ -1688,10 +1713,18 @@ function dedupeLoad(name, force, run){
 // загрузка списка сотрудников и настроек с сервера
 async function fetchConfig(){
   if(!isConfigured()) return;
+  let cfg = null;
   try{
-    const res = await fetch(`${APPS_SCRIPT_URL}?data=config`);
+    const res = await fetchTimeout_(`${APPS_SCRIPT_URL}?data=config`, 20000);
     if(!res.ok) throw new Error('HTTP ' + res.status);
-    const cfg = await res.json();
+    cfg = await res.json();
+    netMark_(true);
+    try { localStorage.setItem(CFG_CACHE_KEY, JSON.stringify(cfg)); } catch(e) {}
+  }catch(e){
+    netMark_(false);
+    try { cfg = JSON.parse(localStorage.getItem(CFG_CACHE_KEY) || 'null'); } catch(e2) { cfg = null; }   // без связи — настройки с прошлого раза
+  }
+  try{
     if(cfg && Array.isArray(cfg.employees) && cfg.employees.length){
       EMPLOYEES = cfg.employees;
       try { localStorage.setItem(EMPLOYEES_CACHE_KEY, JSON.stringify(EMPLOYEES)); } catch(e) {}
@@ -1731,27 +1764,48 @@ function isConfigured(){
 }
 
 // ---------- backend helpers (Google Apps Script + Google Sheets) ----------
+// fetch с ограничением по времени: на слабой связи запрос не висит вечно, а считается обрывом
+function fetchTimeout_(url, ms, init){
+  init = Object.assign({}, init || {});
+  let timer = null;
+  if(ms > 0 && typeof AbortController === 'function'){ const ac = new AbortController(); init.signal = ac.signal; timer = setTimeout(() => ac.abort(), ms); }
+  return fetch(url, init).finally(() => { if(timer) clearTimeout(timer); });
+}
+// это обрыв связи (можно повторить позже), а не отказ сервера?
+function isNetErr_(e){
+  if(!e || e.needPw) return false;
+  const m = String((e && e.message) || e);
+  return e.name === 'AbortError' || e.name === 'TypeError' || /Failed to fetch|NetworkError|Load failed|network|timeout|POST failed: (0|5\d\d)|GET failed: (0|5\d\d)/i.test(m);
+}
 async function apiGet(){
-  const res = await fetch(APPS_SCRIPT_URL, { method: 'GET' });
+  const res = await fetchTimeout_(APPS_SCRIPT_URL, 25000, { method: 'GET' });
   if(!res.ok) throw new Error('GET failed: ' + res.status);
   return res.json();
 }
-async function apiPost(payload){
+async function apiPost(payload, opts){
   empInject_(payload);
   // text/plain избегает preflight-запроса (CORS), который Apps Script не обрабатывает
-  const res = await fetch(APPS_SCRIPT_URL, {
+  const init = {
     method: 'POST',
     headers: { 'Content-Type': 'text/plain;charset=utf-8' },
     body: JSON.stringify(payload)
-  });
-  if(!res.ok) throw new Error('POST failed: ' + res.status);
+  };
+  // opts.timeout: на слабой связи запрос не должен висеть вечно — по истечении он считается обрывом связи
+  let timer = null;
+  if(opts && opts.timeout > 0 && typeof AbortController === 'function'){ const ac = new AbortController(); init.signal = ac.signal; timer = setTimeout(() => ac.abort(), opts.timeout); }
+  let res;
+  try{ res = await fetch(APPS_SCRIPT_URL, init); }
+  catch(e){ if(timer) clearTimeout(timer); netMark_(false); throw e; }
+  if(timer) clearTimeout(timer);
+  if(!res.ok){ netMark_(res.status < 500); throw new Error('POST failed: ' + res.status); }
+  netMark_(true);
   return res.json();
 }
 
 // Для операций с перемещениями: ответ сервера «ошибка» (занят, лимит запросов) = неудача, а не успех.
 // (apiPost оставлен как был: админка сама читает поля ok/error из ответа.)
-async function apiPostStrict(payload){
-  const r = await apiPost(payload);
+async function apiPostStrict(payload, opts){
+  const r = await apiPost(payload, opts);
   if(r && r.needPw){ empLostAuth_(r.emp || payload.employee); const pe = new Error(String(r.error || 'Нужен пароль сотрудника')); pe.needPw = true; throw pe; }
   if(r && (r.ok === false || (r.error && r.ok !== true))) throw new Error(String(r.error || 'Сервер отклонил запрос'));
   return r;
@@ -1920,6 +1974,8 @@ async function loadState(silent){
   isLoading = true;
   try{
     const rows = await apiGet();
+    netMark_(true);
+    stateAt = Date.now(); stateLoaded = true; stateFromCache = false;
     const rowsRaw = JSON.stringify(rows);
     hideConfigBanner();
     if(rowsRaw === lastRowsRaw){
@@ -1929,13 +1985,16 @@ async function loadState(silent){
     }
     lastRowsRaw = rowsRaw;
     const next = rowsToState(rows);
-    state.transfers = next.transfers;
+    state.transfers = applyOpq_(next.transfers);
+    saveStateCacheSoon_(rows);
     // state.inventory (только по истории переносов, без ostatki) больше не
     // используется для отображения — оставлен как есть, реальный пикер и
     // "Остатки" теперь берут данные через computeProjectedInventory().
     state.inventory = next.inventory;
   }catch(e){
-    if(!silent) showToast('Не удалось загрузить данные с сервера. Проверьте подключение и URL.');
+    netMark_(false);
+    if(!stateLoaded){ try { await restoreStateCache_(); } catch(e2) {} }   // первый запуск без связи: показываем то, что сохранили в прошлый раз
+    if(!silent) showToast(netOk ? 'Не удалось загрузить данные с сервера. Проверьте подключение и URL.' : 'Нет связи с сервером' + (stateAt ? ' — показаны сохранённые данные' : ''));
     isLoading = false;
     return;
   }
@@ -2174,11 +2233,19 @@ function stampsChanged(sv){
   if(!appSettings || !Object.keys(appSettings).length) return false; // настройки ещё не загружены — их и так загрузит запуск страницы
   return ['ostatki', 'vitrina', 'cells'].some(k => String(sv[k] || '') !== String((appSettings && appSettings[k + '_uploaded_at']) || ''));
 }
+let verBusy = false;
 async function checkVersion(force){
+  if(verBusy && !force) return;                   // предыдущая проверка ещё идёт (слабая связь): не копим запросы
+  verBusy = true;
+  try { await checkVersionRun_(force); } finally { verBusy = false; }
+}
+async function checkVersionRun_(force){
   if(!isConfigured()) return;
   try{
-    const res = await fetch(APPS_SCRIPT_URL + '?data=ver', { method: 'GET', cache: 'no-store' });
+    const res = await fetchTimeout_(APPS_SCRIPT_URL + '?data=ver', 8000, { method: 'GET', cache: 'no-store' });
     const j = await res.json();
+    netMark_(true);
+    if(j && j.s) setClaims_(j.cl || []);   // v36: кто что сейчас набирает (приходит вместе с версией, отдельных запросов нет)
     if(j && j.s && !serverDedupe){ serverDedupe = true; flushOutbox(); } // сервер версии 28+: повтор того же перемещения не задваивается, можно повторять неотправленное само
     if(j && j.s && stampsChanged(j.s) && Date.now() - stampTry > 60000){ // кто-то загрузил новую выгрузку: подтягиваем настройки и листы
       stampTry = Date.now();
@@ -2188,7 +2255,11 @@ async function checkVersion(force){
       if(j.v === lastVer && !force) return;
       lastVer = j.v;
     }
-  }catch(e){ /* нет связи или старый сервер без ?data=ver: просто грузим список */ }
+  }catch(e){
+    netMark_(false);
+    if(isNetErr_(e) || navigator.onLine === false) return;   // связи нет: список не запрашиваем, ждём следующего опроса
+    /* старый сервер без ?data=ver: просто грузим список */
+  }
   loadState(true);
 }
 (function pollLoop(){
@@ -2421,19 +2492,27 @@ async function completeMany(ids){
   repaintNow();
   opsInFlight++;
   let ok = false;
+  const payload_ = ids.length === 1 ? { action: 'complete', id: ids[0], completedAt: when, deferTg: true } : { action: 'complete_many', ids, completedAt: when, deferTg: true };
   // Telegram обновляется параллельно с записью в таблицу: сервер знает, что эти перемещения уже выполнены
   fireAndForget({ action: 'tg_sync', items: ids.map(id => ({ id, status: 'done' })) });
   try{
-    await apiPostStrict(ids.length === 1 ? { action: 'complete', id: ids[0], completedAt: when, deferTg: true } : { action: 'complete_many', ids, completedAt: when, deferTg: true });
+    await apiPostStrict(payload_, { timeout: 20000 });
     ok = true;
     showToast(ids.length > 1 ? 'Выполнено: ' + ids.length : 'Перемещение завершено, остатки обновлены');
     vibrateOk();
     scheduleProjectionSync();
   }catch(e){
-    state.transfers.forEach(t => { const sn = snap.find(x => x.id === t.id); if(sn){ t.status = sn.status; t.completedAt = sn.completedAt; } });
-    repaintNow();
-    fireAndForget({ action: 'tg_sync', items: [] }); // Telegram: свериться с таблицей
-    showToast('Не удалось завершить. Проверьте подключение.');
+    if(isNetErr_(e)){
+      // связи нет: отметка остаётся на экране и уйдёт на сервер сама, как только связь появится
+      opqAdd_('complete', payload_, ids.length > 1 ? 'Выполнено: ' + ids.length : 'Выполнено');
+      ok = true;
+      showToast('Нет связи: отметка сохранена, отправлю, когда связь появится');
+    } else {
+      state.transfers.forEach(t => { const sn = snap.find(x => x.id === t.id); if(sn){ t.status = sn.status; t.completedAt = sn.completedAt; } });
+      repaintNow();
+      fireAndForget({ action: 'tg_sync', items: [] }); // Telegram: свериться с таблицей
+      showToast('Не удалось завершить. Проверьте подключение.');
+    }
   }finally{ opsInFlight--; }
   lastRowsRaw = null; loadState(true);
   return ok;
@@ -2453,10 +2532,14 @@ async function cancelMany(ids){
   const okIds = [];
   fireAndForget({ action: 'tg_sync', items: snaps }); // Telegram обновляется параллельно с таблицей (по снимку, лист ему не нужен)
   try{
-    const results = await Promise.allSettled(ids.map(id => apiPostStrict({ action: 'cancel', id, deferTg: true })));
-    results.forEach((r, i) => { if(r.status === 'fulfilled') okIds.push(ids[i]); });
+    const results = await Promise.allSettled(ids.map(id => apiPostStrict({ action: 'cancel', id, deferTg: true }, { timeout: 20000 })));
+    let queuedN = 0;
+    results.forEach((r, i) => {
+      if(r.status === 'fulfilled') okIds.push(ids[i]);
+      else if(isNetErr_(r.reason)){ opqAdd_('cancel', { action: 'cancel', id: ids[i], deferTg: true }, 'Отмена перемещения'); okIds.push(ids[i]); queuedN++; }   // нет связи: отмена уйдёт позже
+    });
     if(okIds.length !== ids.length) throw new Error('not all cancelled');
-    showToast(ids.length > 1 ? 'Отменено: ' + ids.length : 'Перемещение отменено');
+    showToast(queuedN ? 'Нет связи: отмена сохранена, отправлю, когда связь появится' : (ids.length > 1 ? 'Отменено: ' + ids.length : 'Перемещение отменено'));
   }catch(e){
     const back = removed.filter(t => !okIds.includes(t.id));
     state.transfers = state.transfers.concat(back);
@@ -2479,12 +2562,17 @@ async function deferMany(ids){
   repaintNow();
   opsInFlight++;
   try{
-    await apiPostStrict({ action: 'defer', ids }); // одним запросом: сервер сам обновит закреплённое «Сейчас» в Telegram
+    await apiPostStrict({ action: 'defer', ids }, { timeout: 20000 }); // одним запросом: сервер сам обновит закреплённое «Сейчас» в Telegram
     showToast('Отложено — в конец очереди');
   }catch(e){
-    prev.forEach(p => { const t = state.transfers.find(x => x.id === p.id); if(t) t.deferredAt = p.d; });
-    repaintNow();
-    showToast('Не удалось отложить. Проверьте подключение.');
+    if(isNetErr_(e)){
+      opqAdd_('defer', { action: 'defer', ids }, 'Отложить: ' + ids.length);
+      showToast('Нет связи: «Позже» сохранено, отправлю, когда связь появится');
+    } else {
+      prev.forEach(p => { const t = state.transfers.find(x => x.id === p.id); if(t) t.deferredAt = p.d; });
+      repaintNow();
+      showToast('Не удалось отложить. Проверьте подключение.');
+    }
   }finally{ opsInFlight--; }
   lastRowsRaw = null; loadState(true);
 }
@@ -3143,7 +3231,41 @@ try {
   const saved = JSON.parse(localStorage.getItem(CART_KEY) || 'null');
   if(Array.isArray(saved)) displayCart = saved.filter(l => l && l.code && Number(l.qty) > 0);
 } catch(e) {}
-function saveCart(){ try { localStorage.setItem(CART_KEY, JSON.stringify(displayCart)); } catch(e) {} }
+function saveCart(){ try { localStorage.setItem(CART_KEY, JSON.stringify(displayCart)); } catch(e) {} scheduleClaims_(); }
+
+// ---------- v36: сообщаем серверу, что лежит в моей корзине (для «уже взято» у остальных) ----------
+const CLAIM_HEARTBEAT_MS = 5 * 60 * 1000;   // пока корзина не пуста, подтверждаем раз в 5 минут (сервер держит блокировку 15 минут)
+let claimSig = '', claimSentAt = 0, claimTimer = null, claimEmp = '', claimBusy = false;
+function claimLines_(){ return displayCart.filter(l => l.code && l.qty > 0).map(l => [l.code, l.qty, l.cell || '']); }
+function claimCurSig_(){ const emp = (selectedEmployee || '').trim(); return emp + '|' + JSON.stringify(emp ? claimLines_() : []); }
+function scheduleClaims_(ms){ clearTimeout(claimTimer); claimTimer = setTimeout(syncClaims_, ms == null ? 1200 : ms); }
+async function syncClaims_(){
+  if(typeof isConfigured === 'function' && !isConfigured()) return;
+  if(claimBusy){ scheduleClaims_(1500); return; }
+  claimBusy = true;
+  let retry = false;
+  try{
+    const emp = (selectedEmployee || '').trim();
+    const lines = emp ? claimLines_() : [];
+    if(claimEmp && claimEmp !== emp){                       // сменили сотрудника: прежнему блокировку снимаем
+      const r0 = await apiPost({ action: 'claims_set', employee: claimEmp, lines: [] }, { timeout: 8000 });
+      if(r0 && r0.ok === false) throw new Error(r0.error || 'x');
+      claimEmp = ''; claimSig = '';
+    }
+    const sig = emp + '|' + JSON.stringify(lines);
+    const due = sig !== claimSig || (lines.length && Date.now() - claimSentAt >= CLAIM_HEARTBEAT_MS);
+    if(emp && due && (lines.length || claimEmp === emp)){
+      const r = await apiPost({ action: 'claims_set', employee: emp, lines }, { timeout: 8000 });
+      if(r && r.ok === false) throw new Error(r.error || 'x');
+      claimSig = sig; claimSentAt = Date.now(); claimEmp = lines.length ? emp : '';
+      if(r && Array.isArray(r.cl)) setClaims_(r.cl);
+    } else if(!lines.length && !claimEmp){ claimSig = sig; }
+  }catch(e){ retry = true; }
+  claimBusy = false;
+  if(retry) scheduleClaims_(30000);                         // нет связи или сервер занят: повторим позже
+  else if(claimCurSig_() !== claimSig) scheduleClaims_(500); // пока шёл запрос, корзина изменилась
+  else if(claimEmp) scheduleClaims_(CLAIM_HEARTBEAT_MS);
+}
 
 function parseVitrinaRows(rows){
   const norm = v => String(v == null ? '' : v).replace(/\s+/g,'').toLowerCase();
@@ -3252,7 +3374,44 @@ function stockExplain(code){
   });
 }
 
-function buildDisplayIndex(){
+// ---------- v36: «уже взято» — позиции, которые другие сотрудники сейчас набирают в корзину ----------
+let claimsAll = [];     // [{n, code, qty, cell, until, since}] — все блокировки, как их отдал сервер
+let claimsSig = '';
+function setClaims_(arr){
+  const now = Date.now();
+  const list = (Array.isArray(arr) ? arr : []).filter(x => Array.isArray(x) && x.length >= 5)
+    .map(x => ({ n: String(x[0] == null ? '' : x[0]), code: String(x[1] == null ? '' : x[1]), qty: Number(x[2]) || 0, cell: String(x[3] || ''), until: now + (Number(x[4]) || 0) * 1000, since: Number(x[5]) || 0 }))
+    .filter(c => c.n && c.code && c.qty > 0);
+  const sig = list.map(c => c.n + '|' + c.code + '|' + c.qty + '|' + c.cell + '|' + c.since).sort().join(';');
+  claimsAll = list;
+  if(sig !== claimsSig){
+    claimsSig = sig;
+    try{ if(document.getElementById('tab-display').classList.contains('active')){ renderDisplay(); try{ if(document.getElementById('cartOverlay').classList.contains('show')) renderCart(); }catch(e){} } }catch(e){}
+  }
+}
+// чужие блокировки, которые касаются меня. Если мы взяли одно и то же одновременно, уступает тот, кто взял позже (при равенстве — по имени)
+function claimsOthers_(){
+  const me = (selectedEmployee || '').trim().toLowerCase(), now = Date.now(), mine = {};
+  claimsAll.forEach(c => { if(c.n.trim().toLowerCase() === me && me) mine[c.code] = Math.min(c.code in mine ? mine[c.code] : Infinity, c.since || 0); });
+  return claimsAll.filter(c => {
+    if(c.until <= now) return false;
+    const nm = c.n.trim().toLowerCase();
+    if(me && nm === me) return false;
+    if(!(c.code in mine)) return true;
+    return (c.since || 0) < mine[c.code] || ((c.since || 0) === mine[c.code] && nm < me);
+  });
+}
+function claimNoteHtml_(it, full){
+  const list = it.claimers || [];
+  if(!list.length) return '';
+  const by = {};
+  list.forEach(c => { by[c.n] = (by[c.n] || 0) + c.qty; });
+  const mins = Math.max(1, Math.ceil((Math.max(...list.map(c => c.until)) - Date.now()) / 60000));
+  const who = Object.keys(by).map(n => `<b>${escapeHtml(n)}</b> — ${by[n]} шт.`).join(', ');
+  return `<div class="disp-claim">🔒 Сейчас набирает: ${who}.${full ? ' Свободного количества сейчас нет.' : ''} Если не отправит, освободится не позже чем через ${mins} мин.</div>`;
+}
+
+function buildDisplayIndex(withClaims){
   const projected = computeProjectedInventory();
   const pendingOut = {};       // cell\u0000article -> qty
   const pendingToDisplay = {}; // article -> qty
@@ -3265,6 +3424,14 @@ function buildDisplayIndex(){
       if(isDisplayDest(t.destCell)) pendingToDisplay[article] = (pendingToDisplay[article] || 0) + qty;
     });
   });
+  const claimQty = {}, claimBy = {};
+  if(withClaims){
+    claimsOthers_().forEach(c => {
+      claimQty[c.code] = (claimQty[c.code] || 0) + c.qty;
+      (claimBy[c.code] = claimBy[c.code] || []).push(c);
+      if(c.cell){ const k = c.cell + '\u0000' + c.code; pendingOut[k] = (pendingOut[k] || 0) + c.qty; }
+    });
+  }
   const byArticle = {};
   const byBlocked = {};        // article -> [{cell, qty}]: свободный остаток в недоступных ячейках (их не предлагаем)
   Object.keys(projected).forEach(cell => {
@@ -3295,15 +3462,15 @@ function buildDisplayIndex(){
   vitrinaItems.forEach(it => {
     if(!byBlocked[it.code]){ const raw = bNorm[normCode(it.code)]; if(raw) byBlocked[it.code] = byBlocked[raw]; }
   });
-  return { byArticle, pendingToDisplay, byBlocked };
+  return { byArticle, pendingToDisplay, byBlocked, claimQty, claimBy };
 }
 
 // сколько ещё можно набрать по товару и по ячейке (с учётом остатка ячейки и очереди кладовщика)
 function displayLimits(){
-  const { byArticle, pendingToDisplay } = buildDisplayIndex();
+  const { byArticle, pendingToDisplay, claimQty } = buildDisplayIndex(true);
   const need = {};
-  vitrinaItems.forEach(it => { if(it.notOn > 0) need[it.code] = Math.max(0, it.notOn - (pendingToDisplay[it.code] || 0)); });
-  return { byArticle, pendingToDisplay, need };
+  vitrinaItems.forEach(it => { if(it.notOn > 0) need[it.code] = Math.max(0, it.notOn - (pendingToDisplay[it.code] || 0) - (claimQty[it.code] || 0)); });
+  return { byArticle, pendingToDisplay, need, claimQty };
 }
 function cartQtyFor(code, exceptId){
   return displayCart.filter(l => l.code === code && l.id !== exceptId).reduce((a,l) => a + l.qty, 0);
@@ -3326,7 +3493,7 @@ function toggleCartCell(code, cell){
     displayCart.splice(idx, 1);
   } else {
     const room = (lim.need[code] || 0) - cartQtyFor(code);
-    if(room <= 0){ showToast('По этому товару уже набрано нужное количество'); return; }
+    if(room <= 0){ showToast((lim.claimQty && lim.claimQty[code] > 0) ? 'Этот товар сейчас набирает другой сотрудник — подождите или возьмите другое' : 'По этому товару уже набрано нужное количество'); return; }
     const ci = cell ? (lim.byArticle[code] || []).find(c => c.cell === cell) : null;
     displayCart.push({ id: newLineId(), code, name: it ? it.name : code, cell, manual: cell === '', qty: Math.max(1, Math.min(room, ci ? ci.qty : room)) });
   }
@@ -3488,7 +3655,7 @@ function renderDisplay(){
     return;
   }
 
-  const { byArticle, pendingToDisplay, byBlocked } = buildDisplayIndex();
+  const { byArticle, pendingToDisplay, byBlocked, claimQty, claimBy } = buildDisplayIndex(true);
   const q = (document.getElementById('displaySearch').value || '').toLowerCase().trim();
   const hideQueued = document.getElementById('displayHideQueued').checked;
   const onlyWithCell = document.getElementById('displayOnlyWithCell').checked;
@@ -3505,7 +3672,8 @@ function renderDisplay(){
   const universe = vitrinaItems.map(it => {
     const queued = pendingToDisplay[it.code] || 0;
     const cells = byArticle[it.code] || [], bl = byBlocked[it.code] || [];
-    return Object.assign({}, it, { queued, need: Math.max(0, it.notOn - queued), cells, blockedCells: cells.length ? [] : bl, blocked: !cells.length && bl.length > 0 });
+    const claimed = Math.min(claimQty[it.code] || 0, Math.max(0, it.notOn - queued)), claimers = claimBy[it.code] || [];
+    return Object.assign({}, it, { queued, claimed, claimers, need: Math.max(0, it.notOn - queued), avail: Math.max(0, it.notOn - queued - claimed), cells, blockedCells: cells.length ? [] : bl, blocked: !cells.length && bl.length > 0 });
   });
   const all = universe.filter(it => it.notOn > 0);
 
@@ -3593,13 +3761,17 @@ function renderDisplay(){
       html += `<div class="disp-unknown" style="color:var(--green);">Позиция выставлена полностью.</div>`;
     } else if(it.need === 0){
       html += `<div class="disp-unknown">Всё нужное уже отправлено на витрину, ждёт выполнения кладовщиком.</div>`;
+    } else if(it.avail === 0 && it.claimed > 0 && !lines.length){
+      html += claimNoteHtml_(it, true);
+    } else if(it.cells.length === 0 && it.claimed > 0 && !lines.length){
+      html += claimNoteHtml_(it, true);
     } else if(it.cells.length === 0){
       const manual = lines.some(l => l.manual);
       const why = stockExplain(it.code);
       html += `<div class="disp-unknown">Нет свободного остатка для выставления. ${why.length ? 'По листу «ostatki»: ' + why.join('; ') + '.' : 'Этого кода нет в листе «ostatki».'}</div>
         <div class="disp-cells"><button type="button" class="disp-cell-btn ${manual ? 'selected' : ''}" data-disp-toggle="${escapeAttr(it.code)}" data-cell="">${manual ? '✓ ' : ''}Указать ячейку вручную (в корзине)</button></div>`;
     } else {
-      html += `<div class="disp-cells">${it.cells.map(c => {
+      html += (it.claimed > 0 ? claimNoteHtml_(it, false) : '') + `<div class="disp-cells">${it.cells.map(c => {
         const line = lines.find(l => l.cell === c.cell);
         return `<span class="disp-cell-grp"><button type="button" class="disp-cell-btn ${line ? 'selected' : ''}" data-disp-toggle="${escapeAttr(it.code)}" data-cell="${escapeAttr(c.cell)}">${line ? '✓ ' : '☐ '}${escapeHtml(c.cell)}<b>×${c.qty}</b>${line ? `<span style="margin-left:6px;">→ ${line.qty}</span>` : ''}</button><button type="button" class="disp-qr-btn" data-qr-cell="${escapeAttr(c.cell)}" title="Показать QR ячейки ${escapeAttr(c.cell)}" aria-label="QR ячейки ${escapeAttr(c.cell)}">QR</button></span>`;
       }).join('')}</div>`;
@@ -3751,7 +3923,7 @@ async function sendCart(){
       // уведомление в Telegram уходит одновременно с записью в таблицу, страница его не ждёт
       fireAndForget(Object.assign({ action: 'notify' }, tr));
       localIds.add(tr.id);
-      try{ await apiPostStrict(Object.assign({ action: 'add', deferNotify: true }, tr)); }
+      try{ await apiPostStrict(Object.assign({ action: 'add', deferNotify: true }, tr), { timeout: 20000 }); }
       catch(addErr){ fireAndForget({ action: 'tg_sync', items: [] }); throw addErr; }
       finally { opsInFlight--; }
       state.transfers.unshift({ id: tr.id, createdAt: tr.createdAt, sourceCell: cell, destCell: DISPLAY_CELL, status: 'pending', completedAt: null, completedBy: '', employee: selectedEmployee, deferredAt: 0, urgent: !!tr.urgent, articles: tr.articles.map(a => ({ article: a.article, qty: a.qty })) });
@@ -4181,10 +4353,24 @@ async function renderAdminReset(body){
             <div class="adm-sub" style="line-height:1.5;max-width:60ch;">${escapeHtml(it.desc)}</div></div>
           <div class="adm-actions"><button type="button" class="btn btn-danger btn-small" data-reset="${it.k}" ${(!st || !n) ? 'disabled' : ''}>Очистить…</button></div>
         </div>`; }).join('')}
+      <div class="adm-row">
+        <div class="adm-main"><b>🔒 Занятые позиции</b> <span class="muted">${st && st.claims ? (st.claims.people ? st.claims.people + ' чел. · поз.: ' + st.claims.lines : 'нет') : ''}</span>
+          ${st && st.claims && st.claims.names && st.claims.names.length ? `<div class="adm-sub">${escapeHtml(st.claims.names.join(', '))}</div>` : ''}
+          <div class="adm-sub" style="line-height:1.5;max-width:60ch;">То, что сотрудники сейчас набрали в корзины: остальные видят «Бобур набирает…». Блокировки сами исчезают через 15 минут после последнего действия. Кнопка освобождает всё сразу — например, если сотрудник ушёл с телефоном, а позиции нужны другим. Данные в таблице не меняются.</div></div>
+        <div class="adm-actions"><button type="button" class="btn btn-ghost btn-small" id="claimsClearBtn" ${(!st || !st.claims || !st.claims.people) ? 'disabled' : ''}>Освободить все</button></div>
+      </div>
       ${last ? `<div class="adm-sub" style="margin-top:8px;">Последний сброс: ${escapeHtml(fmtDate(last.at))} · ${escapeHtml(lastItem ? lastItem.title : last.what)} (строк: ${Number(last.rows) || 0}) · ${(last.saved || []).length ? 'копия сохранена' : 'без копии'}</div>` : ''}
       ${st && !st.hasBackupFile ? '<div class="adm-sub" style="margin-top:6px;">Файла резервных копий ещё нет — он создастся при первом сбросе (скрипту нужно разрешение на создание таблиц в вашем Google Диске). Если разрешения нет, сброс без копии не выполнится, пока вы сами не откажетесь от копии.</div>' : ''}
     </div>`;
   body.querySelectorAll('[data-reset]').forEach(b => b.addEventListener('click', () => openResetDialog_(RESET_ITEMS.find(i => i.k === b.dataset.reset), body)));
+  const cc = body.querySelector('#claimsClearBtn');
+  if(cc) cc.addEventListener('click', async () => {
+    if(!confirm('Освободить все занятые позиции? Сотрудники снова смогут их брать.')) return;
+    cc.disabled = true;
+    try{ await adminCall({ action: 'admin_claims_clear' }); claimsAll = []; claimsSig = ''; showToast('Все позиции освобождены'); }
+    catch(e){ showToast(e.message || 'Не удалось освободить'); }
+    if(adminSection === 'reset') renderAdminReset(body);
+  });
 }
 function openResetDialog_(item, body){
   if(!item) return;
@@ -6540,7 +6726,7 @@ async function flushOutbox(manual){
     if(!empAuthOk(o.tr.employee)){ waitPw++; continue; }        // ждёт пароль сотрудника: сервер всё равно откажет
     try{
       localIds.add(o.tr.id);
-      await apiPostStrict(Object.assign({ action: 'add', deferNotify: true }, o.tr));
+      await apiPostStrict(Object.assign({ action: 'add', deferNotify: true }, o.tr), { timeout: 20000 });
       outbox = outbox.filter(x => x.tr.id !== o.tr.id);
       okN++;
     }catch(e){ o.tries = (o.tries || 0) + 1; }
@@ -6561,13 +6747,20 @@ async function flushOutbox(manual){
 function renderOutbox(){
   const bar = document.getElementById('outboxBar');
   if(!bar) return;
-  bar.hidden = outbox.length === 0;
+  const total = outbox.length + opq.length;
+  bar.hidden = total === 0;
   const waitPw_ = outbox.filter(o => !empAuthOk(o.tr.employee)).length;
-  document.getElementById('outboxText').textContent = '⏳ Не отправлено: ' + outbox.length + (waitPw_ ? ' · ждёт пароль сотрудника' : (serverDedupe ? ' · повторяю сам' : ''));
+  document.getElementById('outboxText').textContent = '⏳ Не отправлено: ' + total + (waitPw_ ? ' · ждёт пароль сотрудника' : (serverDedupe || opq.length ? ' · повторяю сам' : ''));
+  try { renderNetBar_(); } catch(e) {}
   const box = document.getElementById('outboxItems');
   if(box && document.getElementById('outboxOverlay').classList.contains('show')){
-    if(!outbox.length){ box.innerHTML = '<p class="muted">Очередь пуста.</p>'; return; }
-    box.innerHTML = outbox.map(o => {
+    if(!total){ box.innerHTML = '<p class="muted">Очередь пуста.</p>'; return; }
+    const opHtml = opq.map(o => {
+      const mins = Math.max(0, Math.round((Date.now() - o.at) / 60000));
+      return `<div class="outbox-item"><div class="row"><b>${escapeHtml(o.label || o.k)}</b><button type="button" class="alerts-btn" data-opq-del="${escapeAttr(o.id)}">Удалить</button></div>
+        <div class="muted">${mins ? mins + ' мин назад' : 'только что'} · попыток: ${o.tries || 1}</div></div>`;
+    }).join('');
+    box.innerHTML = opHtml + outbox.map(o => {
       const mins = Math.max(0, Math.round((Date.now() - o.at) / 60000));
       return `<div class="outbox-item"><div class="row"><b>${escapeHtml(o.tr.sourceCell)} → ${escapeHtml(o.tr.destCell)}</b><button type="button" class="alerts-btn" data-outbox-del="${escapeAttr(o.tr.id)}">Удалить</button></div>
         <div class="muted">${o.tr.articles.length} арт. · ${escapeHtml(o.tr.employee || '')} · ${mins ? mins + ' мин назад' : 'только что'} · попыток: ${o.tries || 1}</div></div>`;
@@ -6576,11 +6769,17 @@ function renderOutbox(){
 }
 (function wireOutbox(){
   const ov = document.getElementById('outboxOverlay');
-  document.getElementById('outboxRetry').addEventListener('click', () => { flushOutbox(true); });
+  document.getElementById('outboxRetry').addEventListener('click', () => { flushOutbox(true); flushOpq_(true); });
   document.getElementById('outboxList').addEventListener('click', () => { ov.classList.add('show'); renderOutbox(); });
   document.getElementById('outboxClose').addEventListener('click', () => ov.classList.remove('show'));
   ov.addEventListener('click', e => {
     if(e.target === ov){ ov.classList.remove('show'); return; }
+    const od = e.target.closest && e.target.closest('[data-opq-del]');
+    if(od && confirm('Удалить это действие из очереди? Оно не будет отправлено.')){
+      opq = opq.filter(x => x.id !== od.dataset.opqDel);
+      saveOpq_(); renderOutbox(); lastRowsRaw = null; loadState(true);
+      return;
+    }
     const d = e.target.closest && e.target.closest('[data-outbox-del]');
     if(d && confirm('Удалить это перемещение из очереди? Оно не будет создано.')){
       outbox = outbox.filter(x => x.tr.id !== d.dataset.outboxDel);
@@ -6591,6 +6790,100 @@ function renderOutbox(){
   renderOutbox();
   if(outbox.length) setTimeout(() => { Promise.resolve(checkVersion(true)).then(() => flushOutbox()); }, 3000); // остались с прошлого раза: сверяем версию сервера и повторяем
 })();
+
+// ---------- v36: связь, очередь действий и сохранённые данные ----------
+function netMark_(ok){
+  if(ok){
+    netFails = 0;
+    if(!netOk){ netOk = true; renderNetBar_(); try { netBackOnline_(); } catch(e) {} }
+  } else {
+    netFails++;
+    if(netOk && (netFails >= 2 || navigator.onLine === false)){ netOk = false; renderNetBar_(); }
+  }
+}
+function hhmm_(ms){ const d = new Date(ms); return String(d.getHours()).padStart(2, '0') + ':' + String(d.getMinutes()).padStart(2, '0'); }
+function renderNetBar_(){
+  const bar = document.getElementById('netBar');
+  if(!bar) return;
+  document.body.classList.toggle('net-off', !netOk);
+  bar.hidden = netOk;
+  if(netOk) return;
+  const q = outbox.length + opq.length;
+  bar.textContent = '📴 Нет связи — работаю по сохранённым данным' + (stateAt ? ' (список от ' + hhmm_(stateAt) + ')' : '')
+    + '. Нажатия сохраняются и уйдут сами' + (q ? ' · ждёт отправки: ' + q : '') + '.';
+}
+// связь вернулась: отправляем накопленное и обновляем данные
+function netBackOnline_(){
+  showToast('Связь восстановлена');
+  Promise.resolve().then(() => flushOutbox()).then(() => flushOpq_()).catch(() => {});
+  Promise.resolve(fetchConfig()).then(() => Promise.all(['ostatki', 'vitrina'].filter(n => netStale_[n]).map(n => n === 'ostatki' ? fetchOstatki(true) : fetchVitrina(true)))).catch(() => {});
+  try { checkVersion(true); } catch(e) {}
+  try { scheduleClaims_(500); } catch(e) {}
+}
+window.addEventListener('offline', () => { netFails = 2; netMark_(false); });
+window.addEventListener('online', () => { try { checkVersion(true); } catch(e) {} });
+
+function saveOpq_(){ try { localStorage.setItem(OPQ_KEY, JSON.stringify(opq)); } catch(e) {} }
+let opqTimer = null, opqBusy = false;
+function opqAdd_(kind, payload, label){
+  opq.push({ id: 'op_' + Date.now().toString(36) + Math.random().toString(36).slice(2, 6), k: kind, p: payload, label, at: Date.now(), tries: 1 });
+  saveOpq_(); renderOutbox(); scheduleOpq_(8000);
+}
+function scheduleOpq_(ms){ clearTimeout(opqTimer); if(opq.length) opqTimer = setTimeout(() => flushOpq_(), ms); }
+async function flushOpq_(manual){
+  if(opqBusy || !opq.length) return;
+  opqBusy = true;
+  let okN = 0, dropped = 0, dropMsg = '';
+  for(const o of opq.slice()){
+    try{
+      await apiPostStrict(o.p, { timeout: 20000 });
+      opq = opq.filter(x => x.id !== o.id); okN++;
+    }catch(e){
+      if(isNetErr_(e)){ o.tries = (o.tries || 1) + 1; break; }              // связи нет — остальное тоже подождёт, порядок сохраняем
+      opq = opq.filter(x => x.id !== o.id); dropped++; dropMsg = (e && e.message) || '';   // сервер отказал: повторять бессмысленно
+    }
+  }
+  opqBusy = false;
+  saveOpq_(); renderOutbox();
+  if(okN){
+    fireAndForget({ action: 'tg_sync', items: [] });                          // Telegram: показать итог
+    scheduleProjectionSync();
+    lastRowsRaw = null; loadState(true);
+    showToast('Отправлено из очереди: ' + okN);
+  }
+  if(dropped) showToast('Часть действий не применилась (' + (dropMsg || 'сервер отказал') + '). Список обновлён.');
+  if(opq.length) scheduleOpq_(Math.min(60000, 5000 * Math.pow(2, Math.min(Math.max(...opq.map(o => o.tries || 1)), 4))));
+}
+// поверх данных с сервера накладываем действия, которые ещё не дошли (иначе «Выполнено» снова станет «Ожидает»)
+function applyOpq_(list){
+  if(!opq.length) return list;
+  opq.forEach(o => {
+    const p = o.p;
+    if(o.k === 'complete'){ const ids = p.ids || [p.id]; list.forEach(t => { if(ids.includes(t.id) && t.status !== 'done'){ t.status = 'done'; t.completedAt = p.completedAt; } }); }
+    else if(o.k === 'cancel'){ list = list.filter(t => t.id !== p.id); }
+    else if(o.k === 'defer'){ let k = o.at; (p.ids || []).forEach(id => { const t = list.find(x => x.id === id); if(t) t.deferredAt = k++; }); }
+  });
+  return list;
+}
+function saveStateCacheSoon_(rows){
+  stateSaveRows = rows;
+  if(stateSaveTimer) return;
+  stateSaveTimer = setTimeout(() => { stateSaveTimer = null; const r = stateSaveRows; stateSaveRows = null; if(r) scPut('state', 'v', r); }, 20000);
+}
+async function restoreStateCache_(){
+  const c = await scGet('state');
+  if(stateLoaded || !c || !Array.isArray(c.rows) || !c.rows.length) return false;
+  const next = rowsToState(c.rows);
+  state.transfers = applyOpq_(next.transfers);
+  state.inventory = next.inventory;
+  stateAt = c.savedAt || 0; stateFromCache = true; lastRowsRaw = null;
+  rebuildVitrinaItems(); render(); renderNetBar_();
+  return true;
+}
+// пока показаны сохранённые листы, раз в минуту пробуем получить свежие
+setInterval(() => { if(!netStale_.ostatki && !netStale_.vitrina) return; if(netStale_.ostatki) fetchOstatki(true).catch(() => {}); if(netStale_.vitrina) fetchVitrina(true).catch(() => {}); }, 60000);
+if(opq.length) setTimeout(() => flushOpq_(), 3500);
+if(displayCart.length) setTimeout(() => scheduleClaims_(300), 4000);
 
 // ---------- init ----------
 initCellsList();
@@ -6605,6 +6898,11 @@ const startCfg = Promise.resolve(fetchConfig());
 startCfg.then(() => cellsReady).catch(() => {}).then(handleQrParam);
 // штампы выгрузок приходят вместе с настройками — по ним решаем, годится ли кэш; без настроек грузим как раньше
 startCfg.catch(() => {}).then(() => { fetchOstatki(); fetchVitrina(); });
+
+// v36: страница открывается и без связи (service worker хранит копию; при наличии связи всегда берётся свежая)
+try {
+  if('serviceWorker' in navigator && /^https?:$/.test(location.protocol)) window.addEventListener('load', () => { navigator.serviceWorker.register('sw.js').catch(() => {}); });
+} catch(e) {}
 
 // ---------- v22: запоминаем вкладку и состояние сводки ----------
 (function(){
