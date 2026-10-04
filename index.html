@@ -5951,7 +5951,14 @@ function drawSystem(body){
   const dev = perfStats_();
   const devRows = dev.map(s => `<tr><td>${escapeHtml(s.label)}</td><td class="r">${s.n}</td><td class="r">${perfMs_(s.med)}</td><td class="r">${perfMs_(s.p90)}</td><td class="r">${perfMs_(s.max)}</td><td class="r">${s.srvMed !== null ? perfMs_(s.srvMed) : '—'}</td><td class="r">${s.fail || ''}</td></tr>`).join('');
   const srv = S.server || {};
-  const srvRows = Object.keys(srv).sort((a, b) => (srv[b].n || 0) - (srv[a].n || 0)).map(k => { const x = srv[k]; return `<tr><td>${escapeHtml(k)}</td><td class="r">${x.n}</td><td class="r">${perfMs_(Math.round(x.sum / Math.max(1, x.n)))}</td><td class="r">${perfMs_(x.max)}</td></tr>`; }).join('');
+  const srvPar = k => k.split(' › ')[0];
+  const srvRows = Object.keys(srv).sort((a, b) => {
+    const pa = srvPar(a), pb = srvPar(b);
+    if (pa !== pb) return ((srv[pb] && srv[pb].n) || 0) - ((srv[pa] && srv[pa].n) || 0) || (pa < pb ? -1 : 1);
+    if (a === pa) return -1;
+    if (b === pb) return 1;
+    return (srv[b].sum || 0) - (srv[a].sum || 0);
+  }).map(k => { const x = srv[k], sub = k !== srvPar(k); return `<tr><td${sub ? ' class="muted" style="padding-left:18px;"' : ''}>${escapeHtml(sub ? '› ' + k.split(' › ').slice(1).join(' › ') : k)}</td><td class="r">${x.n}</td><td class="r">${perfMs_(Math.round(x.sum / Math.max(1, x.n)))}</td><td class="r">${perfMs_(x.max)}</td></tr>`; }).join('');
   const mCard = `<div class="card">
       <h2>Замеры скорости</h2>
       ${hint('Чтобы понять, из-за чего бывают долгие загрузки, записывается время каждого запроса страницы к таблице. <b>«На этом устройстве»</b> — от отправки до начала ответа: сеть + пробуждение сервера Google + работа скрипта. <b>«Сервер внутри»</b> — сколько скрипт реально считал (без сети и пробуждения). Если первое намного больше второго — тормозит не код и не таблица, а сеть или «холодный старт». Для больших выгрузок (остатки, витрина) время до начала ответа, без учёта скачивания. Чем больше запросов, тем точнее. Пока запросов мало, выводы делать рано. Для кладовщиков: откройте страницу с <code>?perf=1</code> в адресе, внизу появится панель с замерами.')}
