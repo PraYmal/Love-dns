@@ -1912,6 +1912,7 @@ const PERF = { buf: [], dirty: 0, onAdd: null };
 try { PERF.buf = JSON.parse(localStorage.getItem('wt_perf') || '[]') || []; if(!Array.isArray(PERF.buf)) PERF.buf = []; } catch(e) { PERF.buf = []; }
 function perfSave_(){ try { localStorage.setItem('wt_perf', JSON.stringify(PERF.buf.slice(-300))); PERF.dirty = 0; } catch(e) {} }
 function perfAdd_(label, ms, srv, ok){
+  if(label === 'POST admin_perf_reset') return;
   PERF.buf.push([Date.now(), label, Math.round(ms), (srv === null || srv === undefined) ? null : srv, ok ? 1 : 0]);
   if(PERF.buf.length > 300) PERF.buf.splice(0, PERF.buf.length - 300);
   if(++PERF.dirty >= 5) perfSave_();
@@ -5970,6 +5971,7 @@ function drawSystem(body){
         <button type="button" class="btn btn-ghost btn-small" id="sysPerfCopy">Скопировать</button>
         <button type="button" class="btn btn-ghost btn-small" id="sysPerfXlsx">Скачать в Excel</button>
         <button type="button" class="btn btn-ghost btn-small" id="sysPerfClear">Очистить замеры устройства</button>
+        <button type="button" class="btn btn-ghost btn-small" id="sysPerfResetAll">Сбросить все замеры (сервер и это устройство)</button>
       </div>
     </div>`;
 
@@ -6043,6 +6045,13 @@ function drawSystem(body){
     } catch(err) { showToast(err.message || 'Не удалось сформировать файл'); }
   });
   $('sysPerfClear').addEventListener('click', () => { if(!confirm('Очистить замеры на этом устройстве?')) return; PERF.buf = []; perfSave_(); drawSystem(body); });
+  $('sysPerfResetAll').addEventListener('click', async e => {
+    if(!confirm('Сбросить замеры скорости на сервере (за сегодня, по всем устройствам) и на этом устройстве? Замеры на других устройствах останутся — они видны только там, где открыта страница с ?perf=1.')) return;
+    const btn = e.currentTarget; busy(btn, true);
+    try { sysSt = await adminCall({ action: 'admin_perf_reset' }); PERF.buf = []; perfSave_(); showToast('Замеры сброшены'); }
+    catch(err) { showToast(err.message || 'Не удалось сбросить замеры'); }
+    if(adminSection === 'system') drawSystem(body);
+  });
 }
 function sysArchPickLabel_(d){ const o = SYS_ARCH_OPTS.find(x => x[0] === Number(d)); return o ? '<b>' + o[1] + '</b>' : '<b>' + d + ' дн.</b>'; }
 function srvTextForCopy_(srv){
@@ -6382,6 +6391,8 @@ async function renderAdminTelegram(body){
         <label><input type="checkbox" id="tgBoardConfirm" ${bd.confirm !== false ? 'checked' : ''}> Спрашивать «Точно выполнено?» после нажатия «Выполнено» — защита от случайных нажатий</label>
         <label><input type="checkbox" id="tgBoardPing" ${bd.ping !== false ? 'checked' : ''}> Короткий сигнал «🔔 Новое перемещение» со звуком (удаляется сам)</label>
       </div>
+      <div class="adm-row"><div class="adm-main">Закрепы в чатах<div class="adm-sub" style="line-height:1.5;">Бот закрепляет только актуальное табло, прежнее открепляет и удаляет сам. Кнопка ниже снимет <b>все</b> закрепы во всех подключённых чатах и закрепит заново только текущее табло — в группах пропадут и закрепы, поставленные людьми. В группах боту нужно право закреплять сообщения.</div><div id="tgUnpinOut" class="adm-sub" style="margin-top:4px;"></div></div>
+        <div class="adm-actions"><button type="button" class="btn btn-ghost btn-small" id="tgUnpinAll">Очистить закрепы во всех чатах</button></div></div>
       <div class="adm-sub" style="line-height:1.5;">Правка закреплённого сообщения приходит без звука. Поэтому, когда очередь была пуста, табло присылается заново со звуком, а когда в очереди уже что-то есть — звук даёт короткий сигнал (его можно отключить). Если сигнал не удалился сам, он удалится при следующем обновлении табло.</div>
     </div>
     ${foldCard_('tg_journal', 'Журнал входящих от Telegram', upd.length ? upd.length + ' ' + plural_(upd.length, 'запись', 'записи', 'записей') + (upd.some(u => u.err) ? ' · есть ошибки' : '') : 'пусто',
@@ -6432,6 +6443,17 @@ async function renderAdminTelegram(body){
     catch(e){ showToast(e.message || 'Не удалось сохранить'); }
     redraw();
   };
+  const unpinBtn = document.getElementById('tgUnpinAll'); if(unpinBtn) unpinBtn.addEventListener('click', async (ev) => {
+    if(!confirm('Снять все закрепы во всех подключённых чатах и оставить закреплённым только текущее табло? В группах будут сняты и закрепы, поставленные людьми.')) return;
+    const out = document.getElementById('tgUnpinOut'); const btn = ev.currentTarget;
+    btn.disabled = true; out.textContent = 'Очищаю…';
+    try{
+      const r = await adminCall({ action: 'admin_telegram_unpin_all' });
+      const bad = (r.failed || []);
+      out.innerHTML = `Чатов: ${Number(r.chats)}. Закрепы сняты: ${Number(r.cleared)}. Табло закреплено заново: ${Number(r.repinned)}.` + (r.noBoard ? ` Без табло (закреплять нечего): ${Number(r.noBoard)}.` : '') + (bad.length ? '<br><span style="color:var(--red);">Не удалось: ' + bad.map(escapeHtml).join('; ') + '. В группе дайте боту право закреплять сообщения.</span>' : '');
+    }catch(e){ out.textContent = e.message || 'Не удалось очистить закрепы'; }
+    btn.disabled = false;
+  });
   document.getElementById('tgSpeed').addEventListener('click', async (ev) => {
     const out = document.getElementById('tgSpeedOut'); const btn = ev.currentTarget;
     btn.disabled = true; out.textContent = 'Замеряю…';
