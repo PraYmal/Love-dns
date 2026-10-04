@@ -383,6 +383,20 @@
   .adm-sub{font-size:12px;color:var(--text-dim);}
   .adm-row .adm-sub{font-size:12px;color:var(--text-dim);margin-top:3px;}
   .adm-actions{display:flex;gap:6px;flex-wrap:wrap;}
+  .emp-hint{font-size:12px;color:var(--text-dim);margin-top:6px;}
+  .tag-block{display:inline-block;margin-left:6px;padding:1px 7px;border-radius:9px;font-size:10.5px;font-weight:700;background:var(--charcoal-800);border:1px solid var(--line);color:var(--text-dim);vertical-align:middle;}
+  .blocked-note{font-size:12.5px;color:var(--text-dim);margin:0 0 10px;line-height:1.5;}
+  .linklike{background:none;border:0;padding:0;color:var(--orange-soft);cursor:pointer;font:inherit;text-decoration:underline;}
+  details.fold>summary{list-style:none;cursor:pointer;display:flex;align-items:center;justify-content:space-between;gap:10px;}
+  details.fold>summary::-webkit-details-marker{display:none;}
+  details.fold>summary::after{content:"▾";color:var(--text-dim);transition:transform .15s;transform:rotate(-90deg);flex:none;}
+  details.fold[open]>summary::after{transform:none;}
+  details.fold>summary h2{margin:0;}
+  details.fold[open]>summary{margin-bottom:12px;}
+  details.fold h2 span{display:inline;margin:0 0 0 6px;font-size:13px;}
+  details.fold>summary:focus-visible{outline:2px solid var(--orange);outline-offset:4px;border-radius:6px;}
+  .cf-verdict{padding:10px 12px;border-radius:10px;border:1px solid var(--line);margin:10px 0;font-size:14px;line-height:1.5;}
+  .cf-verdict.ok{border-color:var(--green);} .cf-verdict.warn{border-color:var(--orange);} .cf-verdict.fail{border-color:var(--red);}
   .adm-add{display:flex;gap:8px;margin-top:12px;}
   .adm-add input{flex:1;}
 
@@ -600,6 +614,25 @@
   .msg-bubble{background:var(--charcoal-700);border:1px solid var(--line);border-radius:14px 14px 14px 4px;padding:9px 12px;font-size:14px;line-height:1.4;white-space:pre-wrap;word-break:break-word;max-width:100%;min-width:0;}
   .msg-bubble a{color:var(--orange-soft);text-decoration:underline;}
   .msg-bubble code{font-family:"IBM Plex Mono",ui-monospace,monospace;font-size:.92em;background:rgba(128,128,140,.2);padding:0 4px;border-radius:4px;}
+  .rs-grid{display:grid;grid-template-columns:auto minmax(0,1fr);gap:10px 14px;align-items:center;}
+  @media (max-width:560px){.rs-grid{grid-template-columns:minmax(0,1fr);gap:4px;}.rs-lab{margin-top:8px;}}
+  .rs-lab{font-size:13px;color:var(--text-dim);}
+  .rs-radios{display:flex;flex-wrap:wrap;gap:6px 18px;}
+  .rs-radios.col{flex-direction:column;gap:8px;}
+  .rs-opt{display:flex;gap:8px;align-items:flex-start;cursor:pointer;font-size:13.5px;line-height:1.4;}
+  .rs-opt input{margin-top:3px;}
+  .rs-plan{margin-top:12px;padding:11px 13px;border:1px solid var(--line);border-radius:10px;background:var(--charcoal-800);font-size:13.5px;line-height:1.5;}
+  .rs-plan.ok{border-color:var(--green);background:var(--green-dim);}
+  .rs-plan.danger{border-color:var(--red);background:var(--red-dim);}
+  .rs-line{margin-top:6px;}
+  .rs-line.del{color:var(--red);}
+  .rs-line.add{color:var(--green);}
+  .rs-line.warn{color:var(--orange-soft);}
+  .rs-list{margin:8px 0 0 18px;padding:0;font-size:13px;}
+  .rs-list li{margin:2px 0;}
+  .rs-do{margin-top:12px;}
+  .rs-word{width:100%;max-width:240px;box-sizing:border-box;}
+  .rs-msg{margin-top:10px;font-weight:600;color:var(--orange-soft);}
   .stock-req{display:flex;gap:10px;align-items:center;justify-content:space-between;flex-wrap:wrap;margin:10px 0;padding:10px 12px;border:1px solid var(--line);border-radius:10px;}
   .task-now{display:inline-block;font-size:12.5px;font-weight:700;color:var(--green);background:var(--green-dim);border-radius:999px;padding:3px 11px;margin-bottom:10px;}
   .task-next{font-size:13px;font-weight:600;color:var(--text-dim);margin:18px 2px 8px;}
@@ -816,6 +849,8 @@
       </div>
       <label class="disp-check"><input type="checkbox" id="displayHideQueued" checked> Скрыть то, что уже полностью отправлено на витрину (ждёт кладовщика)</label>
       <label class="disp-check"><input type="checkbox" id="displayOnlyWithCell"> Только товары, у которых известна ячейка</label>
+      <label class="disp-check"><input type="checkbox" id="displayShowBlocked"> Недоступные ячейки: показывать и товар, который лежит только в них</label>
+      <div class="adm-sub" id="displayBlockedHint" style="margin:-2px 0 8px 28px;"></div>
       </div></details>
       <div id="displayListWrap" style="margin-top:12px;"></div>
     </div>
@@ -883,6 +918,39 @@
   <span id="outboxText">⏳ Не отправлено: 0</span>
   <button type="button" id="outboxRetry">Повторить</button>
   <button type="button" id="outboxList">Список</button>
+</div>
+<div class="qr-modal-overlay" id="resetOverlay">
+  <div class="qr-modal-box" style="max-width:420px;text-align:left;" role="dialog" aria-labelledby="resetTitle">
+    <button type="button" class="qr-modal-close" id="resetClose" aria-label="Закрыть">✕</button>
+    <h3 id="resetTitle" style="margin:0 0 8px;color:var(--red);"></h3>
+    <div id="resetInfo" style="font-size:14px;line-height:1.55;"></div>
+    <div id="resetErr" role="alert" style="color:var(--red);font-size:13.5px;line-height:1.5;margin-top:8px;"></div>
+    <label class="adm-sub" style="display:block;margin-top:12px;" for="resetWord">Чтобы подтвердить, введите слово <b>СБРОС</b> (большими буквами или маленькими — неважно):</label>
+    <input type="text" id="resetWord" autocomplete="off" autocapitalize="characters" spellcheck="false" style="width:100%;margin-top:6px;">
+    <div style="display:flex;gap:8px;margin-top:12px;flex-wrap:wrap;">
+      <button type="button" class="btn btn-danger" id="resetGo" disabled>Очистить</button>
+      <button type="button" class="btn btn-danger" id="resetGoForce" style="display:none;" disabled>Очистить без копии</button>
+      <button type="button" class="alerts-btn" id="resetCancel">Отмена</button>
+    </div>
+  </div>
+</div>
+<div class="qr-modal-overlay" id="empPwOverlay">
+  <div class="qr-modal-box" style="max-width:340px;text-align:left;" role="dialog" aria-labelledby="empPwTitle">
+    <button type="button" class="qr-modal-close" id="empPwClose" aria-label="Закрыть">✕</button>
+    <h3 id="empPwTitle" style="margin:0 0 6px;">Пароль сотрудника</h3>
+    <p class="muted" id="empPwWho" style="margin:0 0 10px;"></p>
+    <form id="empPwForm" autocomplete="off">
+      <div style="display:flex;gap:8px;">
+        <input type="password" id="empPwInput" placeholder="Пароль" autocomplete="current-password" maxlength="40" style="flex:1;min-width:0;">
+        <button type="button" class="alerts-btn" id="empPwEye" aria-label="Показать пароль" title="Показать пароль">👁</button>
+      </div>
+      <div id="empPwErr" role="alert" style="color:var(--red);font-size:13px;margin-top:8px;min-height:16px;"></div>
+      <div style="display:flex;gap:8px;margin-top:10px;">
+        <button type="submit" class="btn btn-primary" id="empPwGo">Войти</button>
+        <button type="button" class="alerts-btn" id="empPwCancel">Отмена</button>
+      </div>
+    </form>
+  </div>
 </div>
 <div class="qr-modal-overlay" id="alertsOverlay">
   <div class="qr-modal-box" style="max-width:380px;text-align:left;" role="dialog" aria-labelledby="alertsTitle">
@@ -1415,6 +1483,75 @@ try {
   selectedEmployee = localStorage.getItem(EMPLOYEE_STORAGE_KEY) || null;
 } catch(e) { /* localStorage может быть недоступен — просто не запомним выбор */ }
 
+// ---------- v34: пароли сотрудников ----------
+// Список имён, у которых админ задал пароль, приходит с настройками. Выбрав такое имя, сотрудник вводит пароль; сервер проверяет его
+// и выдаёт «пропуск» на 12 часов — он хранится в этом браузере и прикладывается к перемещениям от имени сотрудника.
+const EMP_PW_CACHE_KEY = 'wt_emp_pw', EMP_TOK_KEY = 'wt_emp_tokens';
+let EMP_PW_NAMES = [];
+try { const c = JSON.parse(localStorage.getItem(EMP_PW_CACHE_KEY) || 'null'); if(Array.isArray(c)) EMP_PW_NAMES = c.map(String); } catch(e) {}
+function empTokens_(){ try { const o = JSON.parse(localStorage.getItem(EMP_TOK_KEY) || '{}'); return (o && typeof o === 'object') ? o : {}; } catch(e) { return {}; } }
+function empTokExp_(t){ const n = Number(String(t || '').split('.')[0]); return Number.isFinite(n) ? n : 0; }
+function empTokenFor(name){ const t = empTokens_()[name]; return (t && empTokExp_(t) > Date.now() + 60000) ? t : ''; }
+function empTokenSave_(name, tok){ const o = empTokens_(); o[name] = tok; Object.keys(o).forEach(k => { if(empTokExp_(o[k]) < Date.now()) delete o[k]; }); try { localStorage.setItem(EMP_TOK_KEY, JSON.stringify(o)); } catch(e) {} }
+function empTokenDrop_(name){ const o = empTokens_(); const k = Object.keys(o).find(x => x.toLowerCase() === String(name || '').toLowerCase()); if(k){ delete o[k]; try { localStorage.setItem(EMP_TOK_KEY, JSON.stringify(o)); } catch(e) {} } }
+function empNeedsPw(name){ const l = String(name || '').trim().toLowerCase(); return !!l && EMP_PW_NAMES.some(n => String(n).toLowerCase() === l); }
+function empAuthOk(name){ return !empNeedsPw(name) || !!empTokenFor(name); }
+function empPwSetNames_(list){ if(!Array.isArray(list)) return; EMP_PW_NAMES = list.map(String); try { localStorage.setItem(EMP_PW_CACHE_KEY, JSON.stringify(EMP_PW_NAMES)); } catch(e) {} }
+const EMP_GATED_RE = /^(add|notify|place|request_stock)$/;
+function empInject_(p){
+  if(p && p.employee && !p.empToken && EMP_GATED_RE.test(String(p.action || ''))){ const t = empTokenFor(p.employee); if(t) p.empToken = t; }
+  return p;
+}
+// сервер сказал «нужен пароль»: забываем пропуск и снимаем выбор, чтобы человек выбрал себя заново и ввёл пароль
+function empLostAuth_(name){
+  empTokenDrop_(name);
+  if(selectedEmployee && String(selectedEmployee).toLowerCase() === String(name || '').toLowerCase()){
+    selectedEmployee = null;
+    try { localStorage.removeItem(EMPLOYEE_STORAGE_KEY); } catch(e) {}
+  }
+  if(typeof renderEmployeeList === 'function') renderEmployeeList();
+  try { renderCart(); } catch(e) {}
+}
+function empSelect_(name){
+  selectedEmployee = name || null;
+  try { if(selectedEmployee) localStorage.setItem(EMPLOYEE_STORAGE_KEY, selectedEmployee); else localStorage.removeItem(EMPLOYEE_STORAGE_KEY); } catch(err) {}
+  renderEmployeeList();
+  try { renderCart(); } catch(e) {}
+}
+let empPwBusy_ = false;
+function promptEmpPassword(name){
+  return new Promise(resolve => {
+    const ov = document.getElementById('empPwOverlay'), inp = document.getElementById('empPwInput'), err = document.getElementById('empPwErr'), go = document.getElementById('empPwGo');
+    if(!ov){ resolve(false); return; }
+    document.getElementById('empPwWho').textContent = name + ', введите пароль, который выдал администратор. Он нужен, чтобы перемещения записывались на ваше имя.';
+    inp.value = ''; inp.type = 'password'; err.textContent = ''; go.disabled = false; empPwBusy_ = false;
+    ov.classList.add('show');
+    setTimeout(() => { try { inp.focus(); } catch(e) {} }, 50);
+    let done = false;
+    const finish = ok => { if(done) return; done = true; ov.classList.remove('show'); inp.value = ''; form.onsubmit = null; cancel.onclick = null; close.onclick = null; ov.onclick = null; ov.onkeydown = null; resolve(ok); };
+    const form = document.getElementById('empPwForm'), cancel = document.getElementById('empPwCancel'), close = document.getElementById('empPwClose');
+    cancel.onclick = () => finish(false);
+    close.onclick = () => finish(false);
+    ov.onclick = e => { if(e.target === ov) finish(false); };
+    ov.onkeydown = e => { if(e.key === 'Escape') finish(false); };
+    form.onsubmit = async e => {
+      e.preventDefault();
+      if(empPwBusy_) return;
+      const pw = inp.value;
+      if(!pw){ err.textContent = 'Введите пароль'; return; }
+      empPwBusy_ = true; go.disabled = true; err.textContent = '';
+      try{
+        const r = await apiPost({ action: 'emp_login', employee: name, password: pw });
+        if(r && r.ok === true && r.token){ empTokenSave_(name, r.token); finish(true); return; }
+        if(r && r.ok === true && r.needPw === false){ finish(true); return; }   // пароль у этого сотрудника уже сняли
+        err.textContent = (r && r.error) || 'Не удалось проверить пароль';
+      }catch(ex){ err.textContent = 'Нет связи с сервером. Проверьте интернет и повторите.'; }
+      empPwBusy_ = false; go.disabled = false;
+      try { inp.focus(); inp.select(); } catch(e) {}
+    };
+  });
+}
+
 function renderEmployeeList(){
   ['displayEmployeeList'].forEach(id => {
     const wrap = document.getElementById(id);
@@ -1425,13 +1562,20 @@ function renderEmployeeList(){
       <option value="">— выберите сотрудника —</option>
       ${EMPLOYEES.map(name => `<option value="${escapeAttr(name)}" ${selectedEmployee === name ? 'selected' : ''}>${escapeHtml(name)}</option>`).join('')}
     </select>`;
-    wrap.querySelector('[data-emp-select]').addEventListener('change', (e)=>{
-      selectedEmployee = e.target.value || null;
-      try {
-        if(selectedEmployee) localStorage.setItem(EMPLOYEE_STORAGE_KEY, selectedEmployee);
-        else localStorage.removeItem(EMPLOYEE_STORAGE_KEY);
-      } catch(err) {}
-      renderEmployeeList();
+    if(selectedEmployee && empNeedsPw(selectedEmployee) && empTokenFor(selectedEmployee)){
+      const until = new Date(empTokExp_(empTokenFor(selectedEmployee)));
+      wrap.insertAdjacentHTML('beforeend', `<div class="emp-hint">🔒 Вход по паролю выполнен, действует до ${String(until.getHours()).padStart(2,'0')}:${String(until.getMinutes()).padStart(2,'0')}</div>`);
+    }
+    wrap.querySelector('[data-emp-select]').addEventListener('change', async (e)=>{
+      const v = e.target.value || '';
+      if(v && empNeedsPw(v) && !empTokenFor(v)){
+        e.target.value = selectedEmployee || '';          // пока пароль не принят, выбор не меняется
+        const ok = await promptEmpPassword(v);
+        if(ok){ empSelect_(v); if(outbox.length) flushOutbox(true); }
+        else renderEmployeeList();
+        return;
+      }
+      empSelect_(v);
     });
   });
 }
@@ -1560,6 +1704,12 @@ async function fetchConfig(){
       excludedCellRules = String(cfg.settings.excluded_cells || '').split(/[\n,;]+/).map(x => x.trim().toLowerCase()).filter(Boolean);
     }
     telegramEnabled = !!(cfg && cfg.telegramEnabled);
+    if(cfg && Array.isArray(cfg.empPw)) empPwSetNames_(cfg.empPw);
+    // сохранённый выбор сотрудника с паролем без действующего пропуска: просим выбрать себя заново (пароль спросят при выборе)
+    if(selectedEmployee && empNeedsPw(selectedEmployee) && !empTokenFor(selectedEmployee)){
+      selectedEmployee = null;
+      try { localStorage.removeItem(EMPLOYEE_STORAGE_KEY); } catch(e) {}
+    }
   }catch(e){ /* остаёмся на кэше/запасном списке */ }
   renderEmployeeList();
   renderHistoryEmployeeFilter();
@@ -1587,6 +1737,7 @@ async function apiGet(){
   return res.json();
 }
 async function apiPost(payload){
+  empInject_(payload);
   // text/plain избегает preflight-запроса (CORS), который Apps Script не обрабатывает
   const res = await fetch(APPS_SCRIPT_URL, {
     method: 'POST',
@@ -1601,6 +1752,7 @@ async function apiPost(payload){
 // (apiPost оставлен как был: админка сама читает поля ok/error из ответа.)
 async function apiPostStrict(payload){
   const r = await apiPost(payload);
+  if(r && r.needPw){ empLostAuth_(r.emp || payload.employee); const pe = new Error(String(r.error || 'Нужен пароль сотрудника')); pe.needPw = true; throw pe; }
   if(r && (r.ok === false || (r.error && r.ok !== true))) throw new Error(String(r.error || 'Сервер отклонил запрос'));
   return r;
 }
@@ -2253,6 +2405,7 @@ function wireQtyStepper(container, getValue, onChange){
 // отдельным запросом (tg_sync), который страница не ждёт, — поэтому кнопка отзывается мгновенно.
 function fireAndForget(payload){
   try{
+    empInject_(payload);
     fetch(APPS_SCRIPT_URL, { method: 'POST', headers: { 'Content-Type': 'text/plain;charset=utf-8' }, body: JSON.stringify(payload), keepalive: true })
       .catch(() => setTimeout(() => { apiPost(payload).catch(() => {}); }, 3000));
   }catch(e){}
@@ -2923,7 +3076,7 @@ document.getElementById('initPlaceBtn').addEventListener('click', async ()=>{
   const art = document.getElementById('initArticle').value.trim();
   if(!cell || !art){ showToast('Укажите и ячейку, и артикул'); return; }
   try{
-    await apiPost({
+    await apiPostStrict({
       action: 'place',
       id: 'pl_' + Date.now() + '_' + Math.random().toString(36).slice(2,7),
       createdAt: new Date().toISOString(),
@@ -2940,7 +3093,7 @@ document.getElementById('initPlaceBtn').addEventListener('click', async ()=>{
     renderInitQtyStepper();
     await loadState();
   }catch(e){
-    showToast('Не удалось сохранить размещение. Проверьте подключение.');
+    showToast(e && e.needPw ? 'Нужен пароль сотрудника: выберите себя в списке вверху вкладки «Выставление»' : 'Не удалось сохранить размещение. Проверьте подключение.');
   }
 });
 
@@ -2957,6 +3110,12 @@ let DISPLAY_CELL = 'TZ-1-1-1-2';   // меняется в админке (Нас
 const LEGACY_DISPLAY_CELL = 'Витрина'; // так назывался адрес витрины раньше — старые переносы тоже считаем выставлением
 function isDisplayDest(cell){ return !!cell && (cell === DISPLAY_CELL || cell === LEGACY_DISPLAY_CELL); }
 let excludedCellRules = [];       // из настроек: ячейки/префиксы (с * на конце), откуда НЕ предлагать товар
+// ячейка из списка «откуда не предлагать» (настройки админки); сама витрина сюда не входит
+function isBlockedRuleCell(cell){
+  if(isDisplayDest(cell)) return false;
+  const c = String(cell).toLowerCase();
+  return excludedCellRules.some(r => r.endsWith('*') ? c.startsWith(r.slice(0, -1)) : c === r);
+}
 function isExcludedSource(cell){
   if(isDisplayDest(cell)) return true;
   const c = String(cell).toLowerCase();
@@ -3107,7 +3266,14 @@ function buildDisplayIndex(){
     });
   });
   const byArticle = {};
+  const byBlocked = {};        // article -> [{cell, qty}]: свободный остаток в недоступных ячейках (их не предлагаем)
   Object.keys(projected).forEach(cell => {
+    if(isBlockedRuleCell(cell)){
+      Object.keys(projected[cell]).forEach(article => {
+        const free = projected[cell][article].saleQty - (pendingOut[cell + '\u0000' + article] || 0);
+        if(free > 0) (byBlocked[article] = byBlocked[article] || []).push({ cell, qty: free });
+      });
+    }
     if(isExcludedSource(cell)) return;   // сама витрина и ячейки из списка исключений — не источник
     Object.keys(projected[cell]).forEach(article => {
       // повреждённое/излишки на витрину не предлагаем — берём только количество со статусом «Для продажи»
@@ -3124,7 +3290,12 @@ function buildDisplayIndex(){
   vitrinaItems.forEach(it => {
     if(!byArticle[it.code]){ const raw = byNorm[normCode(it.code)]; if(raw) byArticle[it.code] = byArticle[raw]; }
   });
-  return { byArticle, pendingToDisplay };
+  const bNorm = {};
+  Object.keys(byBlocked).forEach(a => { const n = normCode(a); if(!(n in bNorm)) bNorm[n] = a; });
+  vitrinaItems.forEach(it => {
+    if(!byBlocked[it.code]){ const raw = bNorm[normCode(it.code)]; if(raw) byBlocked[it.code] = byBlocked[raw]; }
+  });
+  return { byArticle, pendingToDisplay, byBlocked };
 }
 
 // сколько ещё можно набрать по товару и по ячейке (с учётом остатка ячейки и очереди кладовщика)
@@ -3165,8 +3336,43 @@ function toggleCartCell(code, cell){
 let lastDisplaySig = null;
 
 function pctOf(it){ return it.total > 0 ? it.on / it.total : 0; }
+// проценты меньше 10 показываем с десятой долей, иначе небольшой прогресс (например, 2 позиции из 1685) выглядел бы как «0%»
+function fmtPct_(p){
+  const v = p * 100;
+  if(v > 0 && v < 10){ const r = Math.round(v * 10) / 10; return r === 0 ? '<0,1%' : String(r).replace('.', ',') + '%'; }
+  return Math.round(v) + '%';
+}
 
-function renderDisplaySummary(scope, calc, caption){
+// Срезы «Совсем нет на витрине» и «Частично» фиксируются по состоянию на момент загрузки файла (до поправки на новые
+// перемещения), а цифры «на витрине» берутся текущие. Иначе выставленная позиция сразу выпадала бы из среза, и процент
+// навсегда оставался бы нулевым. Срез обновляется при следующей загрузке файла.
+function sliceHas_(it, show){
+  const a = it.adj || 0, on0 = it.on - a, not0 = it.notOn + a;
+  if(show === 'zero') return not0 > 0 && on0 <= 0;
+  if(show === 'partial') return not0 > 0 && on0 > 0;
+  if(show === 'full') return not0 === 0;
+  return true;
+}
+function sliceNote_(scope, calc, show){
+  if(show !== 'zero' && show !== 'partial') return '';
+  const at = uploadedAtMs('vitrina');
+  if(at === null) return 'Время загрузки файла неизвестно, поэтому новые перемещения в цифрах не учитываются. Загрузите файл выставления через админку — после этого счёт пойдёт от него.';
+  const placed = scope.filter(it => (it.adj || 0) > 0);
+  const placedPcs = scope.reduce((a, it) => a + (it.adj || 0), 0);
+  const waiting = scope.filter(it => it.notOn > 0 && (it.queued || 0) > 0);
+  const waitPcs = scope.reduce((a, it) => a + (it.notOn > 0 ? Math.min(it.queued || 0, it.notOn) : 0), 0);
+  let s = `Срез зафиксирован на момент загрузки файла (${escapeHtml(fmtUploaded('vitrina'))}) и считается до следующей загрузки. С тех пор выставлено: <b>${placedPcs} шт.</b> по <b>${placed.length}</b> поз.`;
+  if(waiting.length){
+    const real = scope.filter(it => it.total > 0);
+    const pos = calc === 'pos';
+    const base = pos ? real.length : scope.reduce((a, it) => a + it.total, 0);
+    const got = pos ? real.filter(it => it.on > 0 || waiting.indexOf(it) !== -1).length : scope.reduce((a, it) => a + it.on + (it.notOn > 0 ? Math.min(it.queued || 0, it.notOn) : 0), 0);
+    s += ` Ждут кладовщика: <b>${waitPcs} шт.</b> по <b>${waiting.length}</b> поз. — с ними было бы <b>${base > 0 ? fmtPct_(Math.min(1, got / base)) : '0%'}</b>.`;
+  }
+  return s;
+}
+
+function renderDisplaySummary(scope, calc, caption, note){
   // короткая строка над списком: считается по тем же настройкам, что и список
   const pos = calc === 'pos';
   const real = scope.filter(i => i.total > 0);
@@ -3175,9 +3381,9 @@ function renderDisplaySummary(scope, calc, caption){
   const onPcs = pos ? dispPos : scope.reduce((a,i) => a + i.on, 0);
   const pct = totalPcs > 0 ? Math.min(1, onPcs / totalPcs) : 0;
   const dh = document.getElementById('dashHead');
-  if(dh) dh.innerHTML = `<span class="dash-pct">${Math.round(pct * 100)}%</span><span class="dash-txt">выставлено · ${pos ? dispPos + ' из ' + real.length + ' поз.' : onPcs + ' из ' + totalPcs + ' шт.'}${caption ? '<br>' + escapeHtml(caption) : ''}</span>`;
+  if(dh) dh.innerHTML = `<span class="dash-pct">${fmtPct_(pct)}</span><span class="dash-txt">выставлено · ${pos ? dispPos + ' из ' + real.length + ' поз.' : onPcs + ' из ' + totalPcs + ' шт.'}${caption ? '<br>' + escapeHtml(caption) : ''}</span>`;
   const sm = document.getElementById('displaySummary');
-  if(sm) sm.innerHTML = summaryBodyHtml(scope, calc, displayTilesHtml(scope, calc), caption);
+  if(sm) sm.innerHTML = summaryBodyHtml(scope, calc, displayTilesHtml(scope, calc), caption, note ? { note } : undefined);
 }
 
 // плитки под кольцом (используются в админке: раздел «Витрина»)
@@ -3235,24 +3441,35 @@ function summaryBodyHtml(scope, calc, tiles, caption, opts){
       <div class="ring" title="${pos ? 'Позиций, у которых на витрине есть хотя бы 1 шт.' : 'Выставлено штук от общего остатка'}">
         <svg viewBox="0 0 120 120"><circle class="track" cx="60" cy="60" r="${R}" fill="none" stroke-width="11"/>
           <circle class="bar" cx="60" cy="60" r="${R}" fill="none" stroke-width="11" stroke-dasharray="${C.toFixed(1)}" style="--circ:${C.toFixed(1)};--off:${off.toFixed(1)};stroke-dashoffset:${off.toFixed(1)};"/></svg>
-        <div class="center"><b>${Math.round(pct * 100)}%</b><span>выставлено</span></div>
+        <div class="center"><b>${fmtPct_(pct)}</b><span>выставлено</span></div>
       </div>
       <div class="ring-text">
         ${pos ? `Позиций на витрине (хотя бы 1 шт.): <b>${dispPos}</b> из <b>${real.length}</b>` : `На витрине <b>${onPcs}</b> из <b>${totalPcs}</b> шт.`}<br>
         ${pos ? `Всего штук: на витрине <b>${scope.reduce((a,i) => a + i.on, 0)}</b> из <b>${scope.reduce((a,i) => a + i.total, 0)}</b>` : `Позиций на витрине (хотя бы 1 шт.): <b>${dispPos}</b> из <b>${real.length}</b>`}<br>
         <span style="font-size:12.5px;">из них полностью: <b>${fully}</b> · частично: <b>${partialPos}</b> · совсем нет: <b>${real.length - dispPos}</b></span><br>
         ${caption ? `<span class="scope-note" style="display:block;font-size:12px;color:var(--orange-soft);margin-top:2px;">Срез: ${escapeHtml(caption)}</span>` : ''}
+        ${opts.note ? `<span class="slice-note" style="display:block;font-size:12.5px;line-height:1.45;margin:4px 0;">${opts.note}</span>` : ''}
         <span style="font-size:12px;">Считается ${pos ? 'по позициям' : 'по штукам'}. Цифра может отличаться от «Витрина %» в Power BI.</span>
       </div>
     </div>
     <div class="cat-bars">${catRows.map(([name, c]) => {
       const p = c.on / c.total;
-      return `<div class="cat-bar ${opts.clickable ? 'clickable' : ''}" ${opts.clickable ? `data-bar="${escapeAttr(name)}" title="Нажмите, чтобы отфильтровать"` : ''}><div class="top"><span>${escapeHtml(name)}</span><b>${Math.round(p * 100)}% · ${c.on}/${c.total} ${unit}</b></div>
+      return `<div class="cat-bar ${opts.clickable ? 'clickable' : ''}" ${opts.clickable ? `data-bar="${escapeAttr(name)}" title="Нажмите, чтобы отфильтровать"` : ''}><div class="top"><span>${escapeHtml(name)}</span><b>${fmtPct_(p)} · ${c.on}/${c.total} ${unit}</b></div>
         <div class="track"><div class="fill ${p < 0.3 ? 'low' : (p >= 0.7 ? 'high' : '')}" style="width:${Math.round(p * 100)}%"></div></div></div>`;
     }).join('')}${catRows.length < catTotalRows ? `<div class="muted" style="font-size:12.5px;">Показано ${catRows.length} из ${catTotalRows}</div>` : ''}</div>
     <div class="disp-stats">${tiles}</div>`;
 }
 
+function hiddenBlockedNote_(n){
+  return `<div class="blocked-note">🚫 Скрыто товаров, которые лежат только в недоступных ячейках: <b>${n}</b>. <button type="button" class="linklike" data-show-blocked>Показать</button></div>`;
+}
+function wireBlockedNote_(wrap){
+  const b = wrap.querySelector('[data-show-blocked]');
+  if(b) b.addEventListener('click', () => {
+    const el = document.getElementById('displayShowBlocked');
+    if(el){ el.checked = true; el.dispatchEvent(new Event('change', { bubbles: true })); }
+  });
+}
 function renderDisplay(){
   const wrap = document.getElementById('displayListWrap');
   if(!wrap) return;
@@ -3271,19 +3488,24 @@ function renderDisplay(){
     return;
   }
 
-  const { byArticle, pendingToDisplay } = buildDisplayIndex();
+  const { byArticle, pendingToDisplay, byBlocked } = buildDisplayIndex();
   const q = (document.getElementById('displaySearch').value || '').toLowerCase().trim();
   const hideQueued = document.getElementById('displayHideQueued').checked;
   const onlyWithCell = document.getElementById('displayOnlyWithCell').checked;
+  const showBlockedEl = document.getElementById('displayShowBlocked');
+  const showBlocked = !!(showBlockedEl && showBlockedEl.checked);
+  { const h = document.getElementById('displayBlockedHint');
+    if(h) h.textContent = excludedCellRules.length ? 'Сейчас недоступны: ' + excludedCellRules.join(', ') + '. Без галочки такой товар в списке не предлагается.' : 'Список недоступных ячеек пуст — его задают в админке, раздел «Настройки».'; }
   const show = document.getElementById('displayShow').value;      // need | zero | partial | full | all
   const calc = document.getElementById('displayCalc').value;      // pcs | pos
   const sort = document.getElementById('displaySort').value;
-  { const n = Number(sort !== 'cat') + Number(show !== 'need') + Number(calc !== 'pcs') + Number(!hideQueued) + Number(!!onlyWithCell);
+  { const n = Number(sort !== 'cat') + Number(show !== 'need') + Number(calc !== 'pcs') + Number(!hideQueued) + Number(!!onlyWithCell) + Number(showBlocked);
     const bd = document.getElementById('filtBadge'); if(bd){ bd.textContent = n || ''; bd.style.display = n ? '' : 'none'; } }
 
   const universe = vitrinaItems.map(it => {
     const queued = pendingToDisplay[it.code] || 0;
-    return Object.assign({}, it, { queued, need: Math.max(0, it.notOn - queued), cells: byArticle[it.code] || [] });
+    const cells = byArticle[it.code] || [], bl = byBlocked[it.code] || [];
+    return Object.assign({}, it, { queued, need: Math.max(0, it.notOn - queued), cells, blockedCells: cells.length ? [] : bl, blocked: !cells.length && bl.length > 0 });
   });
   const all = universe.filter(it => it.notOn > 0);
 
@@ -3295,12 +3517,10 @@ function renderDisplay(){
   if(displayCategory) scope = scope.filter(it => (it.cat1 || 'Без категории') === displayCategory);
   if(q) scope = scope.filter(it => it.code.toLowerCase().includes(q) || it.name.toLowerCase().includes(q));
   if(onlyWithCell) scope = scope.filter(it => it.cells.length > 0 || it.notOn === 0);
-  if(show === 'zero') scope = scope.filter(it => it.notOn > 0 && it.on <= 0);
-  else if(show === 'partial') scope = scope.filter(it => it.notOn > 0 && it.on > 0);
-  else if(show === 'full') scope = scope.filter(it => it.notOn === 0);
+  if(show === 'zero' || show === 'partial' || show === 'full') scope = scope.filter(it => sliceHas_(it, show));
   const sAll = scope.filter(it => it.notOn > 0);
   const capParts = [];
-  if(show !== 'need' && show !== 'all'){ const o = document.getElementById('displayShow'); capParts.push(o.options[o.selectedIndex].text.replace(/\s*\(.*$/, '')); }
+  if(show !== 'need' && show !== 'all'){ const o = document.getElementById('displayShow'); capParts.push(o.options[o.selectedIndex].text.replace(/\s*\(.*$/, '') + (show === 'zero' || show === 'partial' ? ' (на момент выгрузки)' : '')); }
   if(displayCategory) capParts.push(displayCategory);
   if(q) capParts.push('поиск «' + q + '»');
   if(onlyWithCell) capParts.push('только с известной ячейкой');
@@ -3311,7 +3531,7 @@ function renderDisplay(){
   const zeroCount = sAll.filter(it => it.on === 0 && it.need > 0).length;
   const partialCount = sAll.filter(it => it.on > 0 && it.need > 0).length;
   const fullyPos = scope.filter(it => it.total > 0 && it.notOn === 0).length;
-  renderDisplaySummary(scope, calc, capParts.join(' · '));
+  renderDisplaySummary(scope, calc, capParts.join(' · '), sliceNote_(scope, calc, show));
 
   const cats = [...new Set(all.map(it => it.cat1 || 'Без категории'))].sort();
   const catWrap = document.getElementById('displayCategoryFilter');
@@ -3329,23 +3549,27 @@ function renderDisplay(){
   if(onlyWithCell) items = items.filter(it => it.cells.length > 0 || it.notOn === 0);
   if(displayCategory) items = items.filter(it => (it.cat1 || 'Без категории') === displayCategory);
   if(q) items = items.filter(it => it.code.toLowerCase().includes(q) || it.name.toLowerCase().includes(q));
+  // товар, который лежит только в «недоступных» ячейках, по умолчанию не предлагаем (скрываем из списка); галочка возвращает его
+  const hiddenBlocked = showBlocked ? 0 : items.filter(it => it.blocked && it.need > 0).length;
+  if(!showBlocked) items = items.filter(it => !(it.blocked && it.need > 0));
   if(sort === 'pct') items.sort((a,b) => pctOf(a) - pctOf(b) || b.notOn - a.notOn || a.name.localeCompare(b.name));
   else if(sort === 'qty') items.sort((a,b) => b.notOn - a.notOn || a.name.localeCompare(b.name));
   else items.sort((a,b) => (a.cat1 || 'я').localeCompare(b.cat1 || 'я') || a.name.localeCompare(b.name));
 
   if(items.length === 0){
-    wrap.innerHTML = `<div class="empty-state">${all.length === 0 ? 'Всё выставлено — невыставленных позиций в выгрузке нет.' : 'Ничего не найдено по этим фильтрам.'}</div>`;
+    wrap.innerHTML = `<div class="empty-state">${all.length === 0 ? 'Всё выставлено — невыставленных позиций в выгрузке нет.' : 'Ничего не найдено по этим фильтрам.'}</div>` + (hiddenBlocked ? hiddenBlockedNote_(hiddenBlocked) : '');
+    wireBlockedNote_(wrap);
     return;
   }
 
   // анимацию появления играем только при смене поиска/фильтра/сортировки, а не при каждой галочке
-  const sig = [q, displayCategory, sort, hideQueued, onlyWithCell, show, calc, items.length].join('|');
+  const sig = [q, displayCategory, sort, hideQueued, onlyWithCell, showBlocked, show, calc, items.length].join('|');
   const animate = sig !== lastDisplaySig;
   lastDisplaySig = sig;
 
   const shown = items.slice(0, displayLimit);
   let lastGroup = null;
-  let html = '';
+  let html = hiddenBlocked ? hiddenBlockedNote_(hiddenBlocked) : '';
   shown.forEach((it, idx) => {
     if(sort === 'cat'){
       const group = it.cat1 || 'Без категории';
@@ -3358,7 +3582,7 @@ function renderDisplay(){
     html += `<div class="disp-item ${urg} ${lines.length ? 'open' : ''} ${animate ? 'anim' : ''}" style="--i:${Math.min(idx, 14)}" data-code="${escapeAttr(it.code)}">
       <div class="disp-row">
         <div style="min-width:0;">
-          <div class="disp-skuline"><span class="sku sku-lg">${escapeHtml(it.code)}</span>${it.on === 0 ? '<span class="tag-zero" style="margin-left:0;">нет на витрине</span>' : ''}${it.cat ? `<span class="cat">${escapeHtml(it.cat)}</span>` : ''}</div>
+          <div class="disp-skuline"><span class="sku sku-lg">${escapeHtml(it.code)}</span>${it.on === 0 ? '<span class="tag-zero" style="margin-left:0;">нет на витрине</span>' : ''}${it.blocked ? `<span class="tag-block" title="Эти ячейки в списке «откуда не предлагать» (админка → Настройки)">🚫 только в недоступной: ${escapeHtml(it.blockedCells.slice(0, 2).map(c => c.cell + ' ×' + c.qty).join(', '))}${it.blockedCells.length > 2 ? ' …' : ''}</span>` : ''}${it.cat ? `<span class="cat">${escapeHtml(it.cat)}</span>` : ''}</div>
           <div class="disp-name">${escapeHtml(it.name)}</div>
         </div>
         <div class="disp-bignum"><div class="n">${it.notOn}</div><div class="u">${it.notOn === 0 ? 'всё на витрине' : 'не выставлено'}</div></div>
@@ -3391,6 +3615,7 @@ function renderDisplay(){
     displayCategory = b.dataset.dispCat; displayLimit = 50; renderDisplay();
   }));
   wrap.querySelectorAll('[data-qr-cell]').forEach(b => b.addEventListener('click', () => openQrModal(b.dataset.qrCell)));
+  wireBlockedNote_(wrap);
   wrap.querySelectorAll('[data-disp-toggle]').forEach(b => b.addEventListener('click', () => toggleCartCell(b.dataset.dispToggle, b.dataset.cell)));
   const more = document.getElementById('dispMoreBtn');
   if(more) more.addEventListener('click', () => { displayLimit += 50; renderDisplay(); });
@@ -3487,6 +3712,7 @@ async function sendCart(){
   if(displayCreating) return;
   if(displayCart.length === 0) return;
   if(!selectedEmployee){ showToast('Выберите сотрудника вверху вкладки «Выставление»'); return; }
+  if(!empAuthOk(selectedEmployee)){ empLostAuth_(selectedEmployee); showToast('Пропуск сотрудника истёк: выберите себя в списке заново и введите пароль'); return; }
   if(!isConfigured()){ showConfigBanner(); showToast('Сначала настройте подключение к Google Таблице'); return; }
   const lim = displayLimits();
   if(displayCart.some(l => !l.cell)){ showToast('Укажите ячейку у всех позиций'); return; }
@@ -3503,7 +3729,7 @@ async function sendCart(){
   const btn = document.getElementById('cartSendBtn'); btn.disabled = true;
   const groups = {};
   displayCart.forEach(l => { (groups[l.cell] = groups[l.cell] || []).push(l); });
-  let sent = 0, failed = 0, queued = 0;
+  let sent = 0, failed = 0, queued = 0, needPwHit = false;
   for(const cell of Object.keys(groups)){
     const lines = groups[cell];
     // одинаковые артикулы в одной ячейке сливаем в одну строку
@@ -3534,6 +3760,7 @@ async function sendCart(){
       displayCart = displayCart.filter(l => !ids.has(l.id));
       saveCart();
     }catch(e){
+      if(e && e.needPw){ needPwHit = true; failed++; break; }      // пропуск сотрудника недействителен: ничего не очереди, корзина остаётся
       // не дошло: то же перемещение (с тем же номером) уходит в очередь и будет отправлено повторно, когда появится связь;
       // сервер повтор с тем же номером не задвоит
       const q = lastTrFor_(cell, lines);
@@ -3557,6 +3784,9 @@ async function sendCart(){
   } else if(failed === 0){
     showToast(`Нет связи с сервером: ${plTransfers(queued)} в очереди, отправлю сам, как только связь появится.` + (sent ? ` Уже отправлено: ${sent}.` : ''));
     closeCart();
+  } else if(needPwHit){
+    showToast('Нужен пароль сотрудника: выберите себя в списке вверху вкладки «Выставление» и введите пароль. Корзина сохранена.' + (sent ? ` Уже отправлено: ${sent}.` : ''));
+    renderCart();
   } else {
     showToast(`Отправлено: ${sent}, не удалось: ${failed}. Неотправленное осталось в корзине.`);
     renderCart();
@@ -3577,13 +3807,32 @@ document.getElementById('cartClearBtn').addEventListener('click', () => {
 document.getElementById('displaySearch').addEventListener('input', debounce(() => { displayLimit = 50; renderDisplay(); }, 200));
 document.getElementById('displaySort').addEventListener('change', () => { displayLimit = 50; renderDisplay(); });
 document.getElementById('displayShow').addEventListener('change', () => { displayLimit = 50; renderDisplay(); });
+// Настройки списка запоминаются в этом браузере и действуют при повторном открытии страницы
+const DISP_FILT_KEY = 'wt_display_filters';
 (function(){
-  const sel = document.getElementById('displayCalc');
-  try { const v = localStorage.getItem('wt_display_calc'); if(v === 'pos' || v === 'pcs') sel.value = v; } catch(e) {}
-  sel.addEventListener('change', () => { try { localStorage.setItem('wt_display_calc', sel.value); } catch(e) {} displayLimit = 50; renderDisplay(); });
+  const $ = id => document.getElementById(id);
+  const selects = { sort: 'displaySort', show: 'displayShow', calc: 'displayCalc' };
+  const checks = { hideQueued: 'displayHideQueued', onlyWithCell: 'displayOnlyWithCell', showBlocked: 'displayShowBlocked' };
+  let sv = null;
+  try { sv = JSON.parse(localStorage.getItem(DISP_FILT_KEY) || 'null'); } catch(e) { sv = null; }
+  if(!sv || typeof sv !== 'object'){
+    sv = {};
+    try { const v = localStorage.getItem('wt_display_calc'); if(v === 'pos' || v === 'pcs') sv.calc = v; } catch(e) {}   // прежнее хранение «Считать»
+  }
+  Object.keys(selects).forEach(k => { const el = $(selects[k]); if(el && typeof sv[k] === 'string' && [...el.options].some(o => o.value === sv[k])) el.value = sv[k]; });
+  Object.keys(checks).forEach(k => { const el = $(checks[k]); if(el && typeof sv[k] === 'boolean') el.checked = sv[k]; });
+  const save = () => {
+    const o = {};
+    Object.keys(selects).forEach(k => { o[k] = $(selects[k]).value; });
+    Object.keys(checks).forEach(k => { o[k] = $(checks[k]).checked; });
+    try { localStorage.setItem(DISP_FILT_KEY, JSON.stringify(o)); } catch(e) {}
+  };
+  const box = $('filtBox'); if(box) box.addEventListener('change', save);
+  $('displayCalc').addEventListener('change', () => { displayLimit = 50; renderDisplay(); });
 })();
 document.getElementById('displayHideQueued').addEventListener('change', () => { displayLimit = 50; renderDisplay(); });
 document.getElementById('displayOnlyWithCell').addEventListener('change', () => { displayLimit = 50; renderDisplay(); });
+document.getElementById('displayShowBlocked').addEventListener('change', () => { displayLimit = 50; renderDisplay(); });
 
 // ---------- АДМИНКА ----------
 // Пароль проверяется на сервере (Apps Script) при КАЖДОМ админском действии;
@@ -3651,7 +3900,7 @@ function renderAdmin(){
   }
   loginWrap.style.display = 'none';
   mainWrap.style.display = 'block';
-  const sections = [['overview','Обзор'],['showcase','Витрина'],['data','Данные'],['report','Отчёт'],['analytics','Аналитика'],['diag','Проблемы'],['telegram','Telegram'],['messages','Сообщения'],['employees','Сотрудники'],['transfers','Перемещения'],['audit','Журнал'],['system','Система'],['settings','Настройки'],['password','Пароль']];
+  const sections = [['overview','Обзор'],['showcase','Витрина'],['data','Данные'],['analytics','Отчёт и аналитика'],['diag','Проблемы'],['telegram','Telegram'],['messages','Сообщения'],['employees','Сотрудники'],['transfers','Перемещения'],['audit','Журнал'],['system','Система'],['reset','Сброс'],['settings','Настройки'],['password','Пароль']];
   const nav = document.getElementById('adminSections');
   nav.innerHTML = sections.map(([id,label]) => `<button type="button" class="employee-btn ${adminSection === id ? 'selected' : ''}" data-adm-sec="${id}">${label}</button>`).join('');
   nav.querySelectorAll('[data-adm-sec]').forEach(b => b.addEventListener('click', () => { adminSection = b.dataset.admSec; renderAdmin(); }));
@@ -3662,10 +3911,10 @@ function renderAdmin(){
   else if(adminSection === 'transfers') renderAdminTransfers(body);
   else if(adminSection === 'settings') renderAdminSettings(body);
   else if(adminSection === 'data') renderAdminData(body);
-  else if(adminSection === 'report') renderAdminReport(body);
-  else if(adminSection === 'analytics') renderAdminAnalytics(body);
+  else if(adminSection === 'analytics' || adminSection === 'report') renderAdminStats(body);
   else if(adminSection === 'audit') renderAdminAudit(body);
   else if(adminSection === 'system') renderAdminSystem(body);
+  else if(adminSection === 'reset') renderAdminReset(body);
   else if(adminSection === 'telegram') renderAdminTelegram(body);
   else if(adminSection === 'messages') renderAdminMessages(body);
   else if(adminSection === 'diag') renderAdminDiag(body);
@@ -3686,9 +3935,7 @@ function admShowScope_(universe){
   if(f.onlyCell) sc = sc.filter(it => it.cells.length > 0 || it.notOn === 0);
   if(f.hideQueued) sc = sc.filter(it => !(it.notOn > 0 && it.need === 0));
   if(f.minNot > 0) sc = sc.filter(it => it.notOn >= f.minNot);
-  if(f.show === 'zero') sc = sc.filter(it => it.notOn > 0 && it.on <= 0);
-  else if(f.show === 'partial') sc = sc.filter(it => it.notOn > 0 && it.on > 0);
-  else if(f.show === 'full') sc = sc.filter(it => it.notOn === 0);
+  if(f.show === 'zero' || f.show === 'partial' || f.show === 'full') sc = sc.filter(it => sliceHas_(it, f.show));
   else if(f.show === 'need') sc = sc.filter(it => it.notOn > 0);
   return sc;
 }
@@ -3746,7 +3993,7 @@ function renderAdminShowcase(body){
         <button type="button" class="btn btn-ghost btn-small" id="asExport">⬇ Скачать Excel (${scope.filter(i => i.notOn > 0).length} невыставленных)</button>
       </div>
       ${crumbs ? `<div class="adm-crumbs">Срез: ${escapeHtml(crumbs)}</div>` : ''}
-      ${scope.length ? summaryBodyHtml(scope, f.calc, displayTilesHtml(scope, f.calc), '', { keyFn, sort: f.barSort, limit: f.barsN, clickable: true }) : '<div class="empty-state">Под эти фильтры ничего не подошло.</div>'}
+      ${scope.length ? summaryBodyHtml(scope, f.calc, displayTilesHtml(scope, f.calc), '', { keyFn, sort: f.barSort, limit: f.barsN, clickable: true, note: sliceNote_(scope, f.calc, f.show) }) : '<div class="empty-state">Под эти фильтры ничего не подошло.</div>'}
       <p class="muted" style="font-size:12.5px;margin-top:12px;">Загружено: ${escapeHtml(fmtUploaded('vitrina'))}. «По позициям» — позиция выставлена, если на витрине есть хотя бы 1 шт. Нажмите на полосу, чтобы отфильтровать по ней.</p>
     </div>
     <div class="card">
@@ -3789,11 +4036,6 @@ function renderAdminOverview(body){
   const ostItems = Object.values(state.ostatki || {}).reduce((a,l) => a + l.length, 0);
   const vitNeed = vitrinaItems.filter(i => i.notOn > 0).length;
 
-  const week = Date.now() - 7*24*3600*1000;
-  const counts = {};
-  tr.filter(t => new Date(t.createdAt).getTime() >= week).forEach(t => { const n = t.employee || '—'; counts[n] = (counts[n] || 0) + 1; });
-  const top = Object.entries(counts).sort((a,b) => b[1]-a[1]);
-
   body.innerHTML = `
     <div class="card">
       <h2>Сводка</h2>
@@ -3814,16 +4056,13 @@ function renderAdminOverview(body){
       <div class="adm-row"><div class="adm-main">Telegram<div class="adm-sub">${telegramEnabled ? 'подключён' : 'не подключён'}</div></div></div>
       <div class="adm-row"><div class="adm-main">Лист «prognoz»<div class="adm-sub">прогноз остатков (1С + наши переносы)</div></div>
         <div class="adm-actions"><button type="button" class="btn btn-ghost btn-small" id="admSyncBtn">Обновить прогноз</button></div></div>
-    </div>
-    <div class="card">
-      <h2>Переносы за 7 дней <span>по сотрудникам</span></h2>
-      ${top.length ? top.map(([n,c]) => `<div class="adm-row"><div class="adm-main">${escapeHtml(n)}</div><b>${c}</b></div>`).join('') : '<div class="empty-state">За последнюю неделю перемещений нет.</div>'}
     </div>`;
   document.getElementById('admSyncBtn').addEventListener('click', async () => {
     await syncProjectionToSheet(false);
   });
 }
 
+let admEmpPwEditing = '';
 function renderAdminEmployees(body){
   const usage = {};
   (state.transfers || []).forEach(t => { if(t.employee) usage[t.employee] = (usage[t.employee] || 0) + 1; });
@@ -3831,15 +4070,25 @@ function renderAdminEmployees(body){
     <div class="card">
       <h2>Сотрудники <span>список в выпадающем меню</span></h2>
       <p class="muted" style="margin-top:-6px;">Удаление сотрудника не стирает его историю — старые переносы останутся с его именем.</p>
-      <div id="admEmpList">${EMPLOYEES.map((n,i) => `
+      <p class="muted" style="margin-top:-2px;">🔑 Пароль сотрудника: когда он выбирает себя в «Выставлении», сайт спрашивает пароль. Без пароля сотрудник выбирается как раньше. Это защита от выбора чужого имени, а не полноценная авторизация: сам сайт по-прежнему открыт всем, у кого есть ссылка.</p>
+      <div id="admEmpList">${EMPLOYEES.map((n,i) => { const hasPw = empNeedsPw(n); return `
         <div class="adm-row">
-          <div class="adm-main">${escapeHtml(n)}<div class="adm-sub">перемещений: ${usage[n] || 0}</div></div>
+          <div class="adm-main">${escapeHtml(n)}<div class="adm-sub">перемещений: ${usage[n] || 0} · ${hasPw ? '🔒 пароль задан' : 'без пароля'}</div></div>
           <div class="adm-actions">
-            <button type="button" class="btn btn-ghost btn-small" data-emp-up="${i}" ${i === 0 ? 'disabled' : ''}>↑</button>
-            <button type="button" class="btn btn-ghost btn-small" data-emp-down="${i}" ${i === EMPLOYEES.length-1 ? 'disabled' : ''}>↓</button>
+            <button type="button" class="btn btn-ghost btn-small" data-emp-pw="${i}">🔑 ${hasPw ? 'Сменить пароль' : 'Задать пароль'}</button>
+            ${hasPw ? `<button type="button" class="btn btn-ghost btn-small" data-emp-pwclear="${i}">Снять</button>` : ''}
+            <button type="button" class="btn btn-ghost btn-small" data-emp-up="${i}" ${i === 0 ? 'disabled' : ''} aria-label="Выше">↑</button>
+            <button type="button" class="btn btn-ghost btn-small" data-emp-down="${i}" ${i === EMPLOYEES.length-1 ? 'disabled' : ''} aria-label="Ниже">↓</button>
             <button type="button" class="btn btn-danger btn-small" data-emp-del="${i}">Удалить</button>
           </div>
-        </div>`).join('') || '<div class="empty-state">Список пуст — добавьте сотрудников ниже.</div>'}
+          ${admEmpPwEditing === n ? `<form class="adm-pwform" data-emp-pwform="${i}" style="flex-basis:100%;display:flex;gap:6px;flex-wrap:wrap;align-items:center;">
+            <input type="text" data-emp-pwinput maxlength="40" placeholder="Новый пароль (4–40 знаков)" autocomplete="off" style="flex:1;min-width:160px;">
+            <button type="button" class="btn btn-ghost btn-small" data-emp-pwgen title="Придумать случайный пароль из 6 цифр">🎲</button>
+            <button type="submit" class="btn btn-primary btn-small">Сохранить</button>
+            <button type="button" class="btn btn-ghost btn-small" data-emp-pwcancel>Отмена</button>
+            <div class="adm-sub" style="flex-basis:100%;">Пароль виден только сейчас: запишите его и передайте сотруднику. После сохранения сервер хранит только его хэш (необратимую подпись) и показать пароль уже не сможет. После смены пароля прежний вход сотрудника перестаёт действовать.</div>
+          </form>` : ''}
+        </div>`; }).join('') || '<div class="empty-state">Список пуст — добавьте сотрудников ниже.</div>'}
       </div>
       <div class="adm-add">
         <input type="text" id="admEmpNew" placeholder="Имя нового сотрудника" maxlength="40">
@@ -3848,13 +4097,40 @@ function renderAdminEmployees(body){
     </div>`;
   async function save(list, okMsg){
     try{
-      await adminCall({ action: 'admin_set_employees', employees: list });
+      const rr = await adminCall({ action: 'admin_set_employees', employees: list });
       EMPLOYEES = list;
+      if(rr && Array.isArray(rr.empPw)) empPwSetNames_(rr.empPw);
       try { localStorage.setItem(EMPLOYEES_CACHE_KEY, JSON.stringify(EMPLOYEES)); } catch(e) {}
       renderEmployeeList(); renderHistoryEmployeeFilter(); renderAdmin();
       showToast(okMsg);
     }catch(e){ showToast(e.message || 'Не удалось сохранить'); }
   }
+  body.querySelectorAll('[data-emp-pw]').forEach(b => b.addEventListener('click', () => { admEmpPwEditing = EMPLOYEES[+b.dataset.empPw]; renderAdminEmployees(body); const i = body.querySelector('[data-emp-pwinput]'); if(i) i.focus(); }));
+  body.querySelectorAll('[data-emp-pwcancel]').forEach(b => b.addEventListener('click', () => { admEmpPwEditing = ''; renderAdminEmployees(body); }));
+  body.querySelectorAll('[data-emp-pwgen]').forEach(b => b.addEventListener('click', () => { const i = b.closest('form').querySelector('[data-emp-pwinput]'); const a = new Uint32Array(1); (window.crypto || {}).getRandomValues ? crypto.getRandomValues(a) : (a[0] = Math.floor(Math.random() * 4294967295)); i.value = String(a[0] % 900000 + 100000); i.focus(); i.select(); }));
+  body.querySelectorAll('[data-emp-pwform]').forEach(f => f.addEventListener('submit', async e => {
+    e.preventDefault();
+    const name = EMPLOYEES[+f.dataset.empPwform], pw = f.querySelector('[data-emp-pwinput]').value;
+    if(pw.length < 4 || pw.length > 40 || !pw.trim()){ showToast('Пароль — от 4 до 40 знаков, не из одних пробелов'); return; }
+    const btn = f.querySelector('button[type=submit]'); btn.disabled = true;
+    try{
+      const rr = await adminCall({ action: 'admin_emp_pw_set', name, password: pw });
+      empPwSetNames_(rr.empPw); empTokenDrop_(name);
+      admEmpPwEditing = '';
+      renderAdminEmployees(body); renderEmployeeList();
+      showToast(`Пароль для «${name}» сохранён`);
+    }catch(err){ btn.disabled = false; showToast(err.message || 'Не удалось сохранить пароль'); }
+  }));
+  body.querySelectorAll('[data-emp-pwclear]').forEach(b => b.addEventListener('click', async () => {
+    const name = EMPLOYEES[+b.dataset.empPwclear];
+    if(!confirm(`Снять пароль у «${name}»? Он снова сможет выбирать себя без пароля.`)) return;
+    try{
+      const rr = await adminCall({ action: 'admin_emp_pw_clear', name });
+      empPwSetNames_(rr.empPw); empTokenDrop_(name);
+      renderAdminEmployees(body); renderEmployeeList();
+      showToast(`Пароль у «${name}» снят`);
+    }catch(err){ showToast(err.message || 'Не удалось снять пароль'); }
+  }));
   body.querySelectorAll('[data-emp-del]').forEach(b => b.addEventListener('click', () => {
     const name = EMPLOYEES[+b.dataset.empDel];
     if(!confirm(`Удалить сотрудника «${name}» из списка?`)) return;
@@ -3875,6 +4151,93 @@ function renderAdminEmployees(body){
   };
   document.getElementById('admEmpAdd').addEventListener('click', add);
   document.getElementById('admEmpNew').addEventListener('keydown', e => { if(e.key === 'Enter'){ e.preventDefault(); add(); } });
+}
+
+// ---------- v34: ручной сброс данных ----------
+const RESET_ITEMS = [
+  { k: 'transfers', icon: '📦', title: 'Все перемещения', desc: 'Основной список перемещений и архив. История, «Выставление» (поправка на сделанные переносы), «Остатки» (поправка на переносы) и табло в Telegram станут пустыми. Заголовки таблицы остаются.', rows: c => (c.transfers || 0) + (c.archive || 0), sub: c => `основной список: ${c.transfers || 0}, архив: ${c.archive || 0}` },
+  { k: 'ostatki', icon: '🏷️', title: 'Остатки', desc: 'Выгрузка остатков из 1С (лист «ostatki»). Вкладка «Остатки» опустеет, а «Выставление» не сможет подсказывать ячейки, пока вы не загрузите свежую выгрузку.', rows: c => c.ostatki || 0 },
+  { k: 'vitrina', icon: '🪟', title: 'Выставление', desc: 'Выгрузка «Выставление товара на витрину» (лист «vitrina»). Список на вкладке «Выставление» и расчёты опустеют до новой загрузки файла.', rows: c => c.vitrina || 0 },
+  { k: 'cells', icon: '🔲', title: 'Ячейки', desc: 'Список ячеек и QR-коды (лист «cells»). Страница вернётся к встроенному списку ячеек без картинок QR (после перезагрузки). Устройства, которые уже запомнили прежний список, могут показывать его, пока не обновят кэш страницы.', rows: c => c.cells || 0 }
+];
+let resetSt_ = null;
+async function renderAdminReset(body){
+  body.innerHTML = '<div class="card"><div class="adm-sub">Загружаю…</div></div>';
+  let err = '';
+  try{ resetSt_ = await adminCall({ action: 'admin_reset_state' }); }catch(e){ resetSt_ = null; err = e.message || 'ошибка'; }
+  if(adminSection !== 'reset') return;
+  const st = resetSt_, c = (st && st.counts) || {};
+  const last = st && st.last;
+  const lastItem = last && RESET_ITEMS.find(i => i.k === last.what);
+  body.innerHTML = `
+    <div class="card">
+      <h2>Сброс данных <span>ручная очистка, по одному виду</span></h2>
+      <div class="adm-sub" style="line-height:1.55;margin:-4px 0 12px;">Очищает выбранные данные в таблице полностью. Заголовки столбцов остаются. <b>Отменить нельзя</b>, но перед очисткой сайт сохраняет копию в файле резервных копий (листы «Сброс …», хранятся последние ${6}); при необходимости её можно вернуть вручную. Каждая кнопка спрашивает подтверждение словом «СБРОС».</div>
+      ${err ? `<div class="adm-sub" style="color:var(--red);">Не удалось получить состояние: ${escapeHtml(err)}</div>` : ''}
+      ${RESET_ITEMS.map(it => { const n = st ? it.rows(c) : 0; return `
+        <div class="adm-row">
+          <div class="adm-main"><b>${it.icon} ${escapeHtml(it.title)}</b> <span class="muted">${st ? (n ? 'строк: ' + n : 'пусто') : ''}</span>
+            ${it.sub && st ? `<div class="adm-sub">${escapeHtml(it.sub(c))}</div>` : ''}
+            <div class="adm-sub" style="line-height:1.5;max-width:60ch;">${escapeHtml(it.desc)}</div></div>
+          <div class="adm-actions"><button type="button" class="btn btn-danger btn-small" data-reset="${it.k}" ${(!st || !n) ? 'disabled' : ''}>Очистить…</button></div>
+        </div>`; }).join('')}
+      ${last ? `<div class="adm-sub" style="margin-top:8px;">Последний сброс: ${escapeHtml(fmtDate(last.at))} · ${escapeHtml(lastItem ? lastItem.title : last.what)} (строк: ${Number(last.rows) || 0}) · ${(last.saved || []).length ? 'копия сохранена' : 'без копии'}</div>` : ''}
+      ${st && !st.hasBackupFile ? '<div class="adm-sub" style="margin-top:6px;">Файла резервных копий ещё нет — он создастся при первом сбросе (скрипту нужно разрешение на создание таблиц в вашем Google Диске). Если разрешения нет, сброс без копии не выполнится, пока вы сами не откажетесь от копии.</div>' : ''}
+    </div>`;
+  body.querySelectorAll('[data-reset]').forEach(b => b.addEventListener('click', () => openResetDialog_(RESET_ITEMS.find(i => i.k === b.dataset.reset), body)));
+}
+function openResetDialog_(item, body){
+  if(!item) return;
+  const ov = document.getElementById('resetOverlay'), word = document.getElementById('resetWord'), go = document.getElementById('resetGo'), goF = document.getElementById('resetGoForce'), errEl = document.getElementById('resetErr');
+  const n = resetSt_ ? item.rows(resetSt_.counts || {}) : 0;
+  document.getElementById('resetTitle').textContent = `Очистить: ${item.title}?`;
+  document.getElementById('resetInfo').innerHTML = `Будет удалено строк: <b>${n}</b>. ${escapeHtml(item.desc)}<br><br>Перед очисткой сохраняется копия в файле резервных копий.`;
+  errEl.textContent = ''; word.value = ''; go.disabled = true; goF.disabled = true; goF.style.display = 'none'; go.style.display = '';
+  ov.classList.add('show');
+  setTimeout(() => { try { word.focus(); } catch(e) {} }, 50);
+  let busy = false;
+  const ok = () => word.value.trim().toUpperCase() === 'СБРОС';
+  const close = () => { ov.classList.remove('show'); word.value = ''; };
+  word.oninput = () => { go.disabled = busy || !ok(); goF.disabled = busy || !ok(); };
+  word.onkeydown = e => { if(e.key === 'Enter'){ e.preventDefault(); if(!go.disabled && go.style.display !== 'none') go.click(); } if(e.key === 'Escape') close(); };
+  document.getElementById('resetCancel').onclick = close;
+  document.getElementById('resetClose').onclick = close;
+  ov.onclick = e => { if(e.target === ov) close(); };
+  const run = async force => {
+    if(busy || !ok()) return;
+    if(force && !confirm('Очистить БЕЗ копии? Вернуть данные будет нельзя. Продолжить?')) return;
+    busy = true; go.disabled = true; goF.disabled = true; errEl.textContent = '';
+    try{
+      const r = await apiPost({ action: 'admin_reset_run', adminPassword, what: item.k, word: word.value.trim(), force: !!force });
+      if(r && r.ok === true){
+        close();
+        showToast(`Очищено: ${item.title} (строк: ${r.rows})` + ((r.saved || []).length ? ' · копия сохранена' : ''));
+        await resetRefreshAfter_(item.k);
+        if(adminSection === 'reset') renderAdminReset(body);
+        busy = false; return;
+      }
+      if(r && /Неверный пароль|неверных попыток/i.test(String(r.error || ''))){ close(); adminLogout(true); busy = false; return; }
+      errEl.textContent = (r && r.error) || 'Не удалось очистить';
+      if(r && r.backupFailed){ goF.style.display = ''; go.style.display = 'none'; errEl.textContent += ' Можно повторить попытку позже или очистить без копии.'; }
+    }catch(e){ errEl.textContent = 'Нет связи с сервером — ничего не изменено. Повторите позже.'; }
+    busy = false; go.disabled = !ok(); goF.disabled = !ok();
+  };
+  go.onclick = () => run(false);
+  goF.onclick = () => run(true);
+}
+// после очистки обновляем то, что страница уже держит в памяти и кэше этого устройства
+async function resetRefreshAfter_(kind){
+  try{
+    if(kind === 'transfers'){ lastRowsRaw = null; await loadState(true); }
+    else {
+      try { await scDel(kind); } catch(e) {}
+      if(kind === 'cells'){ try { localStorage.removeItem(CELLS_CACHE_KEY); } catch(e) {} cellsLoadedFor = null; }
+      await fetchConfig();
+      if(kind === 'ostatki') await fetchOstatki(true);
+      if(kind === 'vitrina') await fetchVitrina(true);
+    }
+    repaintNow();
+  }catch(e){ /* страница обновится при следующей загрузке */ }
 }
 
 // ---------- v30: выгрузка истории перемещений в Excel ----------
@@ -4535,7 +4898,8 @@ function buildReport(){
 function pad2(n){ return String(n).padStart(2, '0'); }
 function fmtStamp(d){ return `${d.getFullYear()}-${pad2(d.getMonth()+1)}-${pad2(d.getDate())} ${pad2(d.getHours())}:${pad2(d.getMinutes())}`; }
 
-function renderAdminReport(body){
+function renderAdminReport(body, opts){
+  const shared = !!(opts && opts.shared);
   const R = buildReport();
   const presets = [['today','Сегодня'],['7','7 дней'],['30','30 дней'],['all','Всё время'],['custom','Свой период']];
   const fmtQ = n => String(Math.round(n * 1000) / 1000);
@@ -4549,8 +4913,8 @@ function renderAdminReport(body){
     <div class="card">
       <h2>Отчёт: кто сколько выставил</h2>
       <div class="adm-sub" style="margin:-4px 0 10px;">Считаются завершённые кладовщиком переносы на «Витрину» (шт.), по дате завершения. «Кто» — сотрудник, создавший заявку.</div>
-      <div class="employee-list" id="repPresets" style="margin-bottom:10px;">${presets.map(([id,l]) => `<button type="button" class="employee-btn ${reportPeriod === id ? 'selected' : ''}" data-rep="${id}">${l}</button>`).join('')}</div>
-      ${reportPeriod === 'custom' ? `<div class="adm-add" style="margin:0 0 12px;"><input type="date" id="repFrom" value="${escapeAttr(reportFrom)}"><input type="date" id="repTo" value="${escapeAttr(reportTo)}"></div>` : ''}
+      ${shared ? '' : `<div class="employee-list" id="repPresets" style="margin-bottom:10px;">${presets.map(([id,l]) => `<button type="button" class="employee-btn ${reportPeriod === id ? 'selected' : ''}" data-rep="${id}">${l}</button>`).join('')}</div>`}
+      ${shared ? '' : reportPeriod === 'custom' ? `<div class="adm-add" style="margin:0 0 12px;"><input type="date" id="repFrom" value="${escapeAttr(reportFrom)}"><input type="date" id="repTo" value="${escapeAttr(reportTo)}"></div>` : ''}
       <div class="disp-stats" style="margin-bottom:12px;">
         <div class="disp-stat"><div class="v">${fmtQ(R.total)}</div><div class="l">шт. выставлено</div></div>
         <div class="disp-stat"><div class="v">${R.emps.length}</div><div class="l">сотрудников</div></div>
@@ -4744,7 +5108,28 @@ function anHBars_(rows, valKey, fmt, subFn){
   const max = Math.max(1, ...rows.map(r => r[valKey]));
   return `<div class="an-hb">${rows.map(r => `<div class="an-hb-row"><div class="an-hb-top"><span class="an-hb-name">${escapeHtml(r.name)}</span><b>${escapeHtml(fmt(r))}</b></div><div class="an-hb-track"><div class="an-hb-fill" style="width:${Math.max(1.5, r[valKey] / max * 100)}%"></div></div>${subFn ? `<div class="adm-sub">${escapeHtml(subFn(r))}</div>` : ''}</div>`).join('')}</div>`;
 }
-function renderAdminAnalytics(body){
+// v34: «Отчёт» и «Аналитика» объединены: один выбор периода сверху, под ним отчёт «кто сколько выставил» и аналитика
+function renderAdminStats(body){
+  reportPeriod = anPeriod; reportFrom = anFrom; reportTo = anTo;      // один период на оба блока
+  const presets = [['today','Сегодня'],['7','7 дней'],['30','30 дней'],['all','Всё время'],['custom','Свой период']];
+  body.innerHTML = `
+    <div class="card">
+      <h2>Отчёт и аналитика <span>за выбранный период</span></h2>
+      <div class="employee-list" id="statPresets" style="margin-bottom:${anPeriod === 'custom' ? '10' : '0'}px;">${presets.map(([id, l]) => `<button type="button" class="employee-btn ${anPeriod === id ? 'selected' : ''}" data-stat-p="${id}">${l}</button>`).join('')}</div>
+      ${anPeriod === 'custom' ? `<div class="adm-add" style="margin:0;"><input type="date" id="statFrom" value="${escapeAttr(anFrom)}"><input type="date" id="statTo" value="${escapeAttr(anTo)}"></div>` : ''}
+    </div>
+    <div id="repSlot"></div>
+    <div id="anSlot"></div>`;
+  const redo = () => renderAdminStats(body);
+  body.querySelectorAll('[data-stat-p]').forEach(b => b.addEventListener('click', () => { anPeriod = b.dataset.statP; redo(); }));
+  const f = document.getElementById('statFrom'), t = document.getElementById('statTo');
+  if(f) f.addEventListener('change', () => { anFrom = f.value; redo(); });
+  if(t) t.addEventListener('change', () => { anTo = t.value; redo(); });
+  renderAdminReport(document.getElementById('repSlot'), { shared: true });
+  renderAdminAnalytics(document.getElementById('anSlot'), { shared: true });
+}
+function renderAdminAnalytics(body, opts){
+  const shared = !!(opts && opts.shared);
   const A = anBuild();
   const presets = [['today','Сегодня'],['7','7 дней'],['30','30 дней'],['all','Всё время'],['custom','Свой период']];
   const mKey = anMetric === 'tr' ? 'tr' : 'qty';
@@ -4774,8 +5159,8 @@ function renderAdminAnalytics(body){
     <div class="card">
       <h2>Аналитика</h2>
       <div class="adm-sub" style="margin:-4px 0 10px;">Считается по перемещениям, которые уже загружены на сайт. «Выполнено» — по дате завершения, «создано» — по дате заявки.</div>
-      <div class="employee-list" style="margin-bottom:10px;">${presets.map(([id, l]) => `<button type="button" class="employee-btn ${anPeriod === id ? 'selected' : ''}" data-an-p="${id}">${l}</button>`).join('')}</div>
-      ${anPeriod === 'custom' ? `<div class="adm-add" style="margin:0 0 12px;"><input type="date" id="anFrom" value="${escapeAttr(anFrom)}"><input type="date" id="anTo" value="${escapeAttr(anTo)}"></div>` : ''}
+      ${shared ? '' : `<div class="employee-list" style="margin-bottom:10px;">${presets.map(([id, l]) => `<button type="button" class="employee-btn ${anPeriod === id ? 'selected' : ''}" data-an-p="${id}">${l}</button>`).join('')}</div>`}
+      ${shared ? '' : anPeriod === 'custom' ? `<div class="adm-add" style="margin:0 0 12px;"><input type="date" id="anFrom" value="${escapeAttr(anFrom)}"><input type="date" id="anTo" value="${escapeAttr(anTo)}"></div>` : ''}
       <div class="employee-list" style="margin-bottom:12px;"><button type="button" class="employee-btn ${anMetric === 'tr' ? 'selected' : ''}" data-an-m="tr">Считать перемещения</button><button type="button" class="employee-btn ${anMetric === 'qty' ? 'selected' : ''}" data-an-m="qty">Считать штуки</button></div>
       <div class="disp-stats">
         <div class="disp-stat"><div class="v">${A.done.length}</div><div class="l">выполнено (${anNum_(A.qtyDone)} шт.)</div></div>
@@ -4959,6 +5344,147 @@ function sysHoursSel_(id, from, to, cur){
   for(let h = from; h <= to; h++) o += `<option value="${h}" ${h === cur ? 'selected' : ''}>${pad2(h)}:00</option>`;
   return `<select class="adm-select" id="${id}" style="width:auto;">${o}</select>`;
 }
+// ---------- восстановление из ночной копии (раздел «Система») ----------
+// Состояние хранится отдельно от страницы: перерисовка «Системы» (например, после «Сделать копию») его не сбрасывает.
+const rs = { list: null, loading: false, err: '', day: '', what: 'transfers', mode: 'missing', plan: null, planBusy: false, doBusy: false, msg: '', typed: '' };
+function rsDayLabel_(d){ return d.split('-').reverse().join('.'); }
+function rsReset_(){ rs.plan = null; rs.typed = ''; rs.msg = ''; }
+function rsPlural_(n, a, b, c){ n = Math.abs(Math.round(n)); const x = n % 10, y = n % 100; return (x === 1 && y !== 11) ? a : (x >= 2 && x <= 4 && (y < 12 || y > 14)) ? b : c; }
+function rsCellHtml_(c){ return escapeHtml(String(c || '—')); }
+function rsPlanHtml_(p){
+  if(!p) return '';
+  const n = (v, a, b, c) => `<b>${v}</b> ${rsPlural_(v, a, b, c)}`;
+  if(p.what === 'employees'){
+    if(!p.add.length && !p.del.length) return '<div class="rs-plan ok">Список сотрудников уже совпадает с копией — менять нечего.</div>';
+    return `<div class="rs-plan">
+      <div>Список сотрудников станет таким, как в копии (<b>${p.inCopy}</b> чел.; сейчас <b>${p.now}</b>).</div>
+      ${p.add.length ? `<div class="rs-line add">Добавятся: ${p.add.map(escapeHtml).join(', ')}</div>` : ''}
+      ${p.del.length ? `<div class="rs-line del">Исчезнут из списка: ${p.del.map(escapeHtml).join(', ')}</div>` : ''}
+    </div>`;
+  }
+  const sample = (p.sample || []).map(s => `<li>${rsCellHtml_(s.src)} → ${rsCellHtml_(s.dst)} · ${escapeHtml(s.at ? fmtDate(s.at) : '')} · ${s.st === 'done' ? 'выполнено' : 'ждёт'}</li>`).join('');
+  const more = p.transfers > (p.sample || []).length ? `<li class="muted">…и ещё ${p.transfers - p.sample.length}</li>` : '';
+  const arch = p.skippedArchived ? `<div class="rs-line">${p.skippedArchived} ${rsPlural_(p.skippedArchived, 'перемещение', 'перемещения', 'перемещений')} из копии уже в архиве — в основную таблицу они не вернутся.</div>` : '';
+  if(p.mode === 'missing'){
+    if(!p.rows) return `<div class="rs-plan ok">Возвращать нечего: всё, что есть в копии, уже есть в таблице или в архиве.${arch}</div>`;
+    return `<div class="rs-plan">
+      <div>Вернутся ${n(p.transfers, 'перемещение', 'перемещения', 'перемещений')} (<b>${p.rows}</b> ${rsPlural_(p.rows, 'строка', 'строки', 'строк')}), которых сейчас нет в таблице. Всё остальное останется как есть: новые перемещения и сделанные после копии отметки не пострадают.</div>
+      <ul class="rs-list">${sample}${more}</ul>${arch}
+      <div class="rs-line warn">Если после копии вы отменяли какие-то перемещения специально, они вернутся тоже — посмотрите список выше.</div>
+    </div>`;
+  }
+  if(!p.rows) return `<div class="rs-plan ok">В копии нет перемещений — заменять нечем.${arch}</div>`;
+  return `<div class="rs-plan danger">
+    <div>Таблица перемещений станет такой, какой была в копии: <b>${p.transfers}</b> ${rsPlural_(p.transfers, 'перемещение', 'перемещения', 'перемещений')} (сейчас <b>${p.nowTransfers}</b>).</div>
+    <div class="rs-line del">Пропадут созданные после копии: <b>${p.lost}</b>.</div>
+    <div class="rs-line del">Выполненные после копии вернутся в «ждёт выполнения»: <b>${p.reverted}</b>.</div>
+    ${arch}
+    <div class="rs-line">Прежняя таблица перед заменой сохранится в файле с копиями на листе «До восстановления …» (хранятся последние 5).</div>
+  </div>`;
+}
+function rsCardHtml_(){
+  const L = rs.list;
+  let inner = '';
+  if(!L){
+    inner = `<div class="adm-actions" style="margin-top:2px;"><button type="button" class="btn btn-primary btn-small" id="rsLoad" ${rs.loading ? 'disabled' : ''}>${rs.loading ? 'Загружаю…' : 'Показать доступные копии'}</button></div>
+      ${rs.err ? `<div class="adm-sub" style="color:var(--red);margin-top:8px;">${escapeHtml(rs.err)}</div>` : ''}`;
+  } else if(!L.days.length){
+    inner = '<div class="adm-sub">В файле копий пока нет подходящих листов. Нажмите «Сделать копию сейчас» выше.</div>';
+  } else {
+    if(!rs.day || !L.days.some(d => d.day === rs.day)) rs.day = L.days[0].day;
+    const cur = L.days.find(d => d.day === rs.day) || L.days[0];
+    const opts = L.days.map(d => `<option value="${d.day}" ${d.day === rs.day ? 'selected' : ''}>${rsDayLabel_(d.day)} · строк перемещений: ${d.transfers === null ? '—' : d.transfers}</option>`).join('');
+    const canT = cur.transfers !== null, canE = cur.employees !== null;
+    if(rs.what === 'transfers' && !canT) rs.what = 'employees';
+    if(rs.what === 'employees' && !canE) rs.what = 'transfers';
+    const p = rs.plan;
+    const needWord = p && p.what === 'transfers' && p.mode === 'replace';
+    const canDo = p && !(p.what === 'transfers' && !p.rows) && !(p.what === 'employees' && !p.add.length && !p.del.length) && !(p.what === 'employees' && !p.inCopy);
+    const wordOk = !needWord || rs.typed.trim().toUpperCase() === 'ЗАМЕНИТЬ';
+    inner = `
+      <div class="rs-grid">
+        <label class="rs-lab">Копия за</label>
+        <select class="adm-select" id="rsDay" style="width:auto;max-width:100%;">${opts}</select>
+        <label class="rs-lab">Что вернуть</label>
+        <div class="rs-radios">
+          <label class="rs-opt"><input type="radio" name="rsWhat" value="transfers" ${rs.what === 'transfers' ? 'checked' : ''} ${canT ? '' : 'disabled'}> Перемещения</label>
+          <label class="rs-opt"><input type="radio" name="rsWhat" value="employees" ${rs.what === 'employees' ? 'checked' : ''} ${canE ? '' : 'disabled'}> Список сотрудников</label>
+        </div>
+        ${rs.what === 'transfers' ? `<label class="rs-lab">Как</label>
+        <div class="rs-radios col">
+          <label class="rs-opt"><input type="radio" name="rsMode" value="missing" ${rs.mode === 'missing' ? 'checked' : ''}> <span><b>Вернуть пропавшие</b> — безопасно: добавляются только перемещения, которых сейчас нет</span></label>
+          <label class="rs-opt"><input type="radio" name="rsMode" value="replace" ${rs.mode === 'replace' ? 'checked' : ''}> <span><b>Заменить таблицу целиком</b> — всё, что сделано после копии, пропадёт</span></label>
+        </div>` : ''}
+      </div>
+      <div class="adm-actions" style="margin-top:10px;"><button type="button" class="btn btn-ghost btn-small" id="rsPlan" ${rs.planBusy ? 'disabled' : ''}>${rs.planBusy ? 'Считаю…' : 'Показать, что изменится'}</button></div>
+      ${rsPlanHtml_(p)}
+      ${p && canDo ? `<div class="rs-do">
+        ${needWord ? `<div class="adm-sub" style="margin-bottom:6px;">Для замены введите слово <b>ЗАМЕНИТЬ</b>:</div><input type="text" id="rsWord" class="rs-word" autocomplete="off" value="${escapeAttr(rs.typed)}" placeholder="ЗАМЕНИТЬ">` : ''}
+        <div class="adm-actions" style="margin-top:8px;"><button type="button" class="btn ${needWord ? 'btn-danger' : 'btn-primary'}" id="rsDo" ${(!wordOk || rs.doBusy) ? 'disabled' : ''}>${rs.doBusy ? 'Восстанавливаю…' : 'Восстановить'}</button></div>
+      </div>` : ''}`;
+    if(L.url) inner += `<div class="adm-sub" style="margin-top:10px;"><a href="${escapeAttr(L.url)}" target="_blank" rel="noopener">Открыть файл с копиями</a>${L.emergency ? ` · аварийных копий перед заменой: ${L.emergency}` : ''}</div>`;
+    if(L.last && L.last.at) inner += `<div class="adm-sub" style="margin-top:4px;">Последнее восстановление: ${escapeHtml(sysAt_(L.last.at))} — ${L.last.what === 'employees' ? 'список сотрудников' : (L.last.mode === 'replace' ? 'замена таблицы' : 'возврат пропавших перемещений')} из копии за ${escapeHtml(rsDayLabel_(L.last.day))}.</div>`;
+  }
+  return `<div class="card" id="rsCard">
+      <h2>Восстановление из ночной копии</h2>
+      <div class="adm-sub" style="line-height:1.55;margin:-4px 0 10px;">Если что-то случайно удалили или испортили в таблице, данные можно вернуть из ночной копии. Пока вы не нажмёте «Восстановить», ничего не меняется: сначала показывается, что именно произойдёт. Сами копии не затрагиваются.</div>
+      <div id="rsBox">${inner}</div>
+      ${rs.msg ? `<div class="adm-sub rs-msg">${escapeHtml(rs.msg)}</div>` : ''}
+    </div>`;
+}
+function rsDraw_(){
+  const card = document.getElementById('rsCard');
+  if(!card || adminSection !== 'system') return;
+  card.outerHTML = rsCardHtml_();
+  rsBind_();
+}
+async function rsLoad_(){
+  rs.loading = true; rs.err = ''; rsDraw_();
+  try { rs.list = await adminCall({ action: 'admin_sys_restore_list' }); }
+  catch(e){ rs.err = e.message || 'Не удалось получить список копий'; rs.list = null; }
+  rs.loading = false; rsDraw_();
+}
+async function rsPlan_(){
+  if(rs.planBusy) return;
+  rs.planBusy = true; rs.msg = ''; rsDraw_();
+  try { rs.plan = await adminCall({ action: 'admin_sys_restore_plan', what: rs.what, day: rs.day, mode: rs.mode }); rs.typed = ''; }
+  catch(e){ rs.plan = null; rs.msg = e.message || 'Не удалось посчитать'; }
+  rs.planBusy = false; rsDraw_();
+}
+async function rsDo_(){
+  const p = rs.plan;
+  if(!p || rs.doBusy) return;
+  const what = p.what === 'employees' ? 'список сотрудников' : (p.mode === 'replace' ? 'таблицу перемещений (замена целиком)' : 'пропавшие перемещения');
+  if(!confirm(`Восстановить ${what} из копии за ${rsDayLabel_(p.day)}?`)) return;
+  rs.doBusy = true; rsDraw_();
+  let ok = false;
+  try {
+    const r = await adminCall({ action: 'admin_sys_restore_do', what: p.what, day: p.day, mode: p.mode, sig: p.sig });
+    ok = true;
+    rs.msg = p.what === 'employees' ? `Готово: список сотрудников восстановлен (${r.rows} чел.).`
+      : p.mode === 'replace' ? `Готово: таблица заменена копией (${r.transfers} ${rsPlural_(r.transfers, 'перемещение', 'перемещения', 'перемещений')}). Прежняя сохранена на листе «${r.saved}».`
+      : `Готово: возвращено ${r.transfers} ${rsPlural_(r.transfers, 'перемещение', 'перемещения', 'перемещений')}.`;
+    showToast('Восстановлено');
+  } catch(e){ rs.msg = e.message || 'Не удалось восстановить'; }
+  rs.doBusy = false; rs.plan = null; rs.typed = '';
+  if(ok){
+    try { const L = await adminCall({ action: 'admin_sys_restore_list' }); rs.list = L; } catch(e) { /* список обновится при следующей загрузке */ }
+    try { await loadState(true); } catch(e) { /* страница обновится сама */ }
+    try { sysSt = await adminCall({ action: 'admin_sys_state' }); } catch(e) { /* не критично */ }
+  }
+  if(adminSection === 'system'){ const body = document.getElementById('rsCard') && document.getElementById('rsCard').parentNode; if(body && ok && sysSt){ drawSystem(body); } else rsDraw_(); }
+}
+function rsBind_(){
+  const $ = id => document.getElementById(id);
+  const load = $('rsLoad'); if(load) load.addEventListener('click', rsLoad_);
+  const day = $('rsDay'); if(day) day.addEventListener('change', e => { rs.day = e.target.value; rsReset_(); rsDraw_(); });
+  document.querySelectorAll('input[name=rsWhat]').forEach(r => r.addEventListener('change', e => { rs.what = e.target.value; rsReset_(); rsDraw_(); }));
+  document.querySelectorAll('input[name=rsMode]').forEach(r => r.addEventListener('change', e => { rs.mode = e.target.value; rsReset_(); rsDraw_(); }));
+  const pl = $('rsPlan'); if(pl) pl.addEventListener('click', rsPlan_);
+  const dob = $('rsDo'); if(dob) dob.addEventListener('click', rsDo_);
+  const w = $('rsWord'); if(w) w.addEventListener('input', e => { rs.typed = e.target.value; const b = $('rsDo'); if(b) b.disabled = rs.doBusy || rs.typed.trim().toUpperCase() !== 'ЗАМЕНИТЬ'; });
+}
+
 function drawSystem(body){
   if(!sysSt){
     body.innerHTML = `<div class="card"><h2>Система</h2><div class="adm-sub" style="color:var(--red);">${escapeHtml(sysErrMsg || 'Нет данных')}</div><div class="adm-actions" style="margin-top:10px;"><button type="button" class="btn btn-ghost btn-small" id="sysRetry">Повторить</button></div></div>`;
@@ -5090,7 +5616,7 @@ function drawSystem(body){
       </div>
     </div>`;
 
-  body.innerHTML = (sysErrMsg ? `<div class="card"><div class="adm-sub" style="color:var(--red);">Не удалось обновить: ${escapeHtml(sysErrMsg)}. Показаны прежние данные.</div></div>` : '') + evCard + bkCard + arCard + qCard + wCard + mCard;
+  body.innerHTML = (sysErrMsg ? `<div class="card"><div class="adm-sub" style="color:var(--red);">Не удалось обновить: ${escapeHtml(sysErrMsg)}. Показаны прежние данные.</div></div>` : '') + evCard + bkCard + rsCardHtml_() + arCard + qCard + wCard + mCard;
 
   const busy = (btn, on) => { if(btn) btn.disabled = on; };
   const $ = id => document.getElementById(id);
@@ -5111,6 +5637,8 @@ function drawSystem(body){
     catch(err) { showToast(err.message || 'Не удалось создать копию'); }
     if(adminSection === 'system') renderAdminSystem(body);
   });
+  // восстановление
+  rsBind_();
   // архив
   $('sysArchDays').addEventListener('change', e => { sysArchPick = Number(e.target.value); });
   $('sysArchSave').addEventListener('click', () => { const v = Number($('sysArchDays').value); sysArchPick = null; sysCfgSave_({ archive_days: v }, v ? 'Срок архива сохранён' : 'Архив выключен', body); });
@@ -5375,6 +5903,19 @@ function tgSiteDefault(){
     return (location.origin + location.pathname).replace(/index\.html$/i, '');
   }catch(e){ return ''; }
 }
+let cfLast_ = null;
+function plural_(n, a, b, c){ const m = Math.abs(n) % 100, d = m % 10; return (m > 10 && m < 20) ? c : (d === 1 ? a : (d >= 2 && d <= 4 ? b : c)); }
+function cfResultHtml_(){
+  const r = cfLast_;
+  if(!r) return '<div class="adm-sub">Проверка ещё не запускалась.</div>';
+  if(r.error) return `<div class="cf-verdict fail">❌ ${escapeHtml(r.error)}</div>`;
+  const ic = { ok: '✅', warn: '⚠️', fail: '❌', info: 'ℹ️' };
+  const head = r.verdict === 'ok' ? '✅ Cloudflare работает так, как нужно'
+    : (r.verdict === 'warn' ? '⚠️ Работает, но есть замечания' : '❌ Цепочка не работает — смотрите красные пункты');
+  const when = r.at ? new Date(r.at).toLocaleString('ru-RU', { day: '2-digit', month: '2-digit', hour: '2-digit', minute: '2-digit', second: '2-digit' }) : '';
+  return `<div class="cf-verdict ${escapeAttr(r.verdict || '')}"><b>${head}</b><div class="adm-sub">${when ? 'Проверено ' + escapeHtml(when) : ''}${r.host ? ' · ' + escapeHtml(r.host) : ''}${r.ms ? ' · заняло ' + (Math.round(r.ms / 100) / 10) + ' с' : ''}</div></div>`
+    + (r.items || []).map(i => `<div class="adm-row"><div class="adm-main">${ic[i.status] || '•'} <b>${escapeHtml(i.title || '')}</b><div class="adm-sub" style="line-height:1.5;">${escapeHtml(i.detail || '')}</div></div></div>`).join('');
+}
 async function renderAdminTelegram(body){
   tgStateErr = '';
   try{ tgState = await adminCall({ action: 'admin_telegram_state' }); }catch(e){ tgState = null; tgStateErr = e.message || 'ошибка'; }
@@ -5470,18 +6011,13 @@ async function renderAdminTelegram(body){
         </div></div>
       <div class="adm-fchecks" style="margin-top:12px;">
         <label><input type="checkbox" id="tgBoardOnly" ${bd.only !== false ? 'checked' : ''}> Только табло — без отдельных сообщений о каждом перемещении</label>
+        <label><input type="checkbox" id="tgBoardConfirm" ${bd.confirm !== false ? 'checked' : ''}> Спрашивать «Точно выполнено?» после нажатия «Выполнено» — защита от случайных нажатий</label>
         <label><input type="checkbox" id="tgBoardPing" ${bd.ping !== false ? 'checked' : ''}> Короткий сигнал «🔔 Новое перемещение» со звуком (удаляется сам)</label>
       </div>
       <div class="adm-sub" style="line-height:1.5;">Правка закреплённого сообщения приходит без звука. Поэтому, когда очередь была пуста, табло присылается заново со звуком, а когда в очереди уже что-то есть — звук даёт короткий сигнал (его можно отключить). Если сигнал не удалился сам, он удалится при следующем обновлении табло.</div>
     </div>
-    <div class="card">
-      <h2>Журнал входящих от Telegram</h2>
-      <div class="adm-sub" style="line-height:1.55;margin:-4px 0 10px;">Последние нажатия кнопок и команды, которые дошли до таблицы. Если вы нажали кнопку или набрали команду, а здесь пусто — Telegram не доставляет запросы (смотрите блок «Приём нажатий кнопок» выше и «Ускорение нажатий»). Если запись есть, но с ошибкой — пришлите её мне.</div>
-      ${updHtml}
-      <div class="adm-actions" style="margin-top:10px;"><button type="button" class="btn btn-ghost btn-small" id="tgSpeed">Замерить скорость</button></div>
-      <div id="tgSpeedOut" class="adm-sub" style="line-height:1.6;margin-top:8px;"></div>
-    </div></div>
-    </div>
+    ${foldCard_('tg_journal', 'Журнал входящих от Telegram', upd.length ? upd.length + ' ' + plural_(upd.length, 'запись', 'записи', 'записей') + (upd.some(u => u.err) ? ' · есть ошибки' : '') : 'пусто',
+      `<div class="adm-sub" style="line-height:1.55;margin:-4px 0 10px;">Последние нажатия кнопок и команды, которые дошли до таблицы. Если вы нажали кнопку или набрали команду, а здесь пусто — Telegram не доставляет запросы (смотрите блок «Приём нажатий кнопок» выше и «Проверку Cloudflare» ниже). Если запись есть, но с ошибкой — пришлите её мне.</div>${updHtml}`)}
     <div class="card">
       <h2>Ускорение нажатий из Telegram</h2>
       <div class="adm-sub" style="line-height:1.55;margin:-4px 0 10px;">
@@ -5503,13 +6039,28 @@ async function renderAdminTelegram(body){
       <div class="adm-add"><input type="text" id="tgProxy" value="${escapeAttr((s && s.webhookBase) || '')}" placeholder="пусто — без прокси"><button type="button" class="btn btn-primary" id="tgProxySave">Применить</button></div>
     </div>
     <div class="card">
+      <h2>Проверка Cloudflare</h2>
+      <div class="adm-sub" style="line-height:1.55;margin:-4px 0 10px;">Проверяет всю цепочку «Telegram → Worker → Apps Script»: тот ли адрес у Telegram, отвечает ли Worker, доходит ли запрос до скрипта и как быстро. Скрипт отправляет <b>один</b> пробный запрос через Worker (для бесплатного плана Cloudflare это один запрос из суточного лимита) и ничего не пишет в таблицу и не отправляет в Telegram. Занимает до 15 секунд.</div>
+      <div class="adm-actions"><button type="button" class="btn btn-primary" id="cfCheckBtn" ${s && s.connected ? '' : 'disabled'}>🔍 Проверить Cloudflare</button><button type="button" class="btn btn-ghost btn-small" id="tgSpeed">Замерить скорость</button></div>
+      <div id="cfOut" style="margin-top:8px;">${cfResultHtml_()}</div>
+      <div id="tgSpeedOut" class="adm-sub" style="line-height:1.6;margin-top:8px;"></div>
+    </div>
+    <div class="card">
       <h2>Запасной вариант: ссылки «QR»</h2>
       <div class="adm-sub" style="line-height:1.5;margin:-4px 0 10px;">Нужен только если картинку с QR отправить не удалось: тогда сообщение придёт текстом со ссылками «QR» на эту страницу (QR откроется крупно). Укажите адрес вашей страницы (GitHub Pages).</div>
       <div class="adm-add"><input type="text" id="tgSite" value="${escapeAttr(siteVal)}" placeholder="https://ваш-логин.github.io/репозиторий/"><button type="button" class="btn btn-primary" id="tgSiteSave">Сохранить адрес</button></div>
     </div>`;
   const redraw = async () => { await renderAdminTelegram(body); };
+  wireFolds_(body);
+  document.getElementById('cfCheckBtn').addEventListener('click', async ev => {
+    const btn = ev.currentTarget, out = document.getElementById('cfOut');
+    btn.disabled = true; out.innerHTML = '<div class="adm-sub">⏳ Проверяю… (до 15 секунд)</div>';
+    try{ cfLast_ = await adminCall({ action: 'admin_cf_check' }); cfLast_.local = Date.now(); }
+    catch(e){ cfLast_ = { error: e.message || 'Не удалось выполнить проверку', local: Date.now() }; }
+    if(adminSection === 'telegram'){ const o = document.getElementById('cfOut'); if(o) o.innerHTML = cfResultHtml_(); const b = document.getElementById('cfCheckBtn'); if(b) b.disabled = false; }
+  });
   const boardCall = async (enabled) => {
-    try{ await adminCall({ action: 'admin_telegram_board', enabled, order: document.getElementById('tgBoardOrder').value, only: document.getElementById('tgBoardOnly').checked, ping: document.getElementById('tgBoardPing').checked }); QUEUE_ORDER = document.getElementById('tgBoardOrder').value; showToast(enabled ? 'Табло включено' : 'Табло выключено'); }
+    try{ await adminCall({ action: 'admin_telegram_board', enabled, order: document.getElementById('tgBoardOrder').value, only: document.getElementById('tgBoardOnly').checked, ping: document.getElementById('tgBoardPing').checked, confirm: document.getElementById('tgBoardConfirm').checked }); QUEUE_ORDER = document.getElementById('tgBoardOrder').value; showToast(enabled ? 'Табло включено' : 'Табло выключено'); }
     catch(e){ showToast(e.message || 'Не удалось сохранить'); }
     redraw();
   };
@@ -5584,6 +6135,14 @@ async function renderAdminTelegram(body){
 }
 
 // ---------- АДМИНКА: проблемные товары ----------
+// сворачиваемые блоки админки: открыт/закрыт запоминается в этом браузере (по умолчанию закрыты)
+const FOLD_KEY = 'wt_folds';
+function foldGet_(k){ try { const o = JSON.parse(localStorage.getItem(FOLD_KEY) || '{}'); return !!(o && o[k] === 1); } catch(e) { return false; } }
+function foldSet_(k, v){ try { const o = JSON.parse(localStorage.getItem(FOLD_KEY) || '{}') || {}; if(v) o[k] = 1; else delete o[k]; localStorage.setItem(FOLD_KEY, JSON.stringify(o)); } catch(e) {} }
+function foldCard_(key, title, count, inner){
+  return `<details class="card fold" data-fold="${key}" ${foldGet_(key) ? 'open' : ''}><summary><h2>${title}${(count === '' || count === null || count === undefined) ? '' : ` <span>${count}</span>`}</h2></summary><div class="fold-body">${inner}</div></details>`;
+}
+function wireFolds_(root){ root.querySelectorAll('details.fold[data-fold]').forEach(d => d.addEventListener('toggle', () => foldSet_(d.dataset.fold, d.open))); }
 function renderAdminDiag(body){
   if(!vitrinaLoaded){ body.innerHTML = '<div class="card"><div class="empty-state">Выгрузка витрины не загружена.</div></div>'; return; }
   const { byArticle, pendingToDisplay } = buildDisplayIndex();
@@ -5595,16 +6154,13 @@ function renderAdminDiag(body){
   });
   const row = (it) => `<div class="adm-row"><div class="adm-main"><span class="sku sku-lg">${escapeHtml(it.code)}</span> <b class="qty-x">не выставл. ${it.notOn}</b>${escapeHtml(it.name)}
       <div class="adm-sub">${(() => { const w = stockExplain(it.code); return w.length ? 'По листу «ostatki»: ' + w.join('; ') : 'Этого кода нет в листе «ostatki».'; })()}</div></div></div>`;
-  body.innerHTML = dataWarnHtml() + `
-    <div class="card">
-      <h2>Нет ячейки для выставления <span>${probs.length}</span></h2>
-      <div class="adm-sub" style="margin:-4px 0 10px;">Позиции, которые не выставлены, но свободного остатка вне витрины для них страница не нашла. Под каждой — что есть по листу «ostatki» и почему оно не подходит.</div>
-      ${probs.length ? probs.slice(0, 100).map(row).join('') + (probs.length > 100 ? `<div class="adm-sub">…и ещё ${probs.length - 100}</div>` : '') : '<div class="empty-state">Таких позиций нет.</div>'}
-    </div>
-    <div class="card">
-      <h2>Остатка в ячейках меньше, чем нужно <span>${short.length}</span></h2>
-      ${short.length ? short.slice(0, 100).map(row).join('') : '<div class="empty-state">Таких позиций нет.</div>'}
-    </div>`;
+  body.innerHTML = dataWarnHtml()
+    + foldCard_('diag_nocell', 'Нет ячейки для выставления', probs.length,
+        `<div class="adm-sub" style="margin:-4px 0 10px;">Позиции, которые не выставлены, но свободного остатка вне витрины для них страница не нашла. Под каждой — что есть по листу «ostatki» и почему оно не подходит.</div>`
+        + (probs.length ? probs.slice(0, 100).map(row).join('') + (probs.length > 100 ? `<div class="adm-sub">…и ещё ${probs.length - 100}</div>` : '') : '<div class="empty-state">Таких позиций нет.</div>'))
+    + foldCard_('diag_short', 'Остатка в ячейках меньше, чем нужно', short.length,
+        short.length ? short.slice(0, 100).map(row).join('') + (short.length > 100 ? `<div class="adm-sub">…и ещё ${short.length - 100}</div>` : '') : '<div class="empty-state">Таких позиций нет.</div>');
+  wireFolds_(body);
 }
 
 // ---------- utils ----------
@@ -5914,6 +6470,12 @@ function renderAlertsUi(){
   renderAlertsUi();
 })();
 
+(function wireEmpPwEye(){
+  const b = document.getElementById('empPwEye'), i = document.getElementById('empPwInput');
+  if(!b || !i) return;
+  b.addEventListener('click', () => { const show = i.type === 'password'; i.type = show ? 'text' : 'password'; b.title = b.ariaLabel = show ? 'Скрыть пароль' : 'Показать пароль'; try { i.focus(); } catch(e) {} });
+})();
+
 // ---------- v29: очередь неотправленных перемещений (автоповтор при обрыве связи) ----------
 const OUTBOX_KEY = 'wt_outbox';
 let outbox = [];
@@ -5935,7 +6497,9 @@ async function flushOutbox(manual){
   if(!manual && !serverDedupe){ renderOutbox(); return; }
   outboxBusy = true;
   let okN = 0;
+  let waitPw = 0;
   for(const o of outbox.slice()){
+    if(!empAuthOk(o.tr.employee)){ waitPw++; continue; }        // ждёт пароль сотрудника: сервер всё равно откажет
     try{
       localIds.add(o.tr.id);
       await apiPostStrict(Object.assign({ action: 'add', deferNotify: true }, o.tr));
@@ -5943,6 +6507,7 @@ async function flushOutbox(manual){
       okN++;
     }catch(e){ o.tries = (o.tries || 0) + 1; }
   }
+  if(waitPw && manual) showToast('Часть перемещений ждёт пароль сотрудника: выберите его в списке вверху вкладки «Выставление» и введите пароль');
   outboxBusy = false;
   saveOutbox(); renderOutbox();
   if(okN){
@@ -5959,7 +6524,8 @@ function renderOutbox(){
   const bar = document.getElementById('outboxBar');
   if(!bar) return;
   bar.hidden = outbox.length === 0;
-  document.getElementById('outboxText').textContent = '⏳ Не отправлено: ' + outbox.length + (serverDedupe ? ' · повторяю сам' : '');
+  const waitPw_ = outbox.filter(o => !empAuthOk(o.tr.employee)).length;
+  document.getElementById('outboxText').textContent = '⏳ Не отправлено: ' + outbox.length + (waitPw_ ? ' · ждёт пароль сотрудника' : (serverDedupe ? ' · повторяю сам' : ''));
   const box = document.getElementById('outboxItems');
   if(box && document.getElementById('outboxOverlay').classList.contains('show')){
     if(!outbox.length){ box.innerHTML = '<p class="muted">Очередь пуста.</p>'; return; }
