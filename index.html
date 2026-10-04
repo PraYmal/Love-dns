@@ -670,6 +670,55 @@
     .cart-bar{bottom:var(--navh);padding-bottom:10px;}
     .toast{bottom:calc(var(--navh) + 12px);}
   }
+
+  /* v37: история по товару/ячейке, печатная форма, сигналы */
+  .hist-box{max-width:560px;text-align:left;max-height:88vh;overflow:auto;}
+  .hist-sum{display:flex;flex-wrap:wrap;gap:4px 14px;margin:6px 0 10px;font-size:13px;}
+  .hist-row{border-top:1px solid var(--line);padding:9px 0;font-size:13.5px;}
+  .hist-row .hr-top{display:flex;justify-content:space-between;gap:8px;align-items:center;flex-wrap:wrap;}
+  .hist-row .hr-route{margin:3px 0;font-weight:600;word-break:break-word;}
+  .hist-dir{font-size:11.5px;color:var(--text-dim);margin-left:6px;font-weight:400;}
+  .rep-box{max-width:760px;text-align:left;max-height:92vh;overflow:auto;}
+  .rep-sec{margin:14px 0 6px;font-weight:600;font-size:13px;}
+  .rep-grid{display:grid;grid-template-columns:repeat(auto-fit,minmax(150px,1fr));gap:8px 10px;}
+  .rep-grid label{display:flex;flex-direction:column;gap:3px;font-size:12px;color:var(--text-dim);}
+  .rep-grid select,.rep-grid input[type=text],.rep-grid input[type=date]{background:var(--charcoal-800);color:var(--text);border:1px solid var(--line);border-radius:8px;padding:8px 9px;font-size:14px;min-height:38px;width:100%;box-sizing:border-box;}
+  .rep-chips{display:flex;flex-wrap:wrap;gap:6px;}
+  .rep-chip{display:inline-flex;align-items:center;gap:6px;border:1px solid var(--line);border-radius:999px;padding:6px 11px;font-size:13px;cursor:pointer;background:var(--charcoal-800);}
+  .rep-chip input{width:16px;height:16px;margin:0;}
+  .rep-chip.on{border-color:var(--orange);}
+  .rep-opts{display:flex;flex-wrap:wrap;gap:4px 18px;margin-top:8px;}
+  .rep-opts .alerts-opt{padding:4px 0;}
+  .rep-prev{overflow:auto;max-height:210px;border:1px solid var(--line);border-radius:8px;margin-top:6px;}
+  .rep-prev table{font-size:12px;}
+  .rep-prev th,.rep-prev td{padding:5px 7px;white-space:nowrap;}
+  .rep-actions{display:flex;flex-wrap:wrap;gap:8px;margin-top:14px;}
+  .rep-actions .btn{flex:1 1 150px;min-height:44px;}
+  .rep-open{margin-left:8px;}
+  .alerts-sec{margin:14px 0 2px;font-weight:600;font-size:13px;border-top:1px solid var(--line);padding-top:10px;}
+  #printArea{display:none;}
+  @media print{
+    body.printing-rep > *:not(#printArea){display:none !important;}
+    body.printing-rep{background:#fff !important;color:#000 !important;}
+    body.printing-rep #printArea{display:block !important;color:#000;background:#fff;font-family:Arial,Helvetica,sans-serif;}
+    #printArea .rep-print{font-size:10.5pt;}
+    #printArea .rep-print.f-small{font-size:8.5pt;}
+    #printArea .rep-print.f-large{font-size:13pt;}
+    #printArea h1{font-size:1.5em;margin:0 0 4px;}
+    #printArea .rep-meta{font-size:.82em;color:#333;margin-bottom:8px;}
+    #printArea table{width:100%;border-collapse:collapse;font-size:1em;}
+    #printArea thead{display:table-header-group;}
+    #printArea tr{page-break-inside:avoid;}
+    #printArea th{background:#e8eaee !important;color:#000;border:1px solid #444;padding:4px 5px;text-align:left;-webkit-print-color-adjust:exact;print-color-adjust:exact;}
+    #printArea td{border:1px solid #666;padding:4px 5px;color:#000;vertical-align:top;}
+    #printArea td.num{text-align:right;white-space:nowrap;}
+    #printArea td.nw{white-space:nowrap;}
+    #printArea th{text-transform:none !important;letter-spacing:0 !important;white-space:nowrap;}
+    #printArea .rep-tick{display:inline-block;width:1.1em;height:1.1em;border:1.5px solid #000;vertical-align:middle;}
+    #printArea h2{font-size:1.1em;margin:14px 0 4px;}
+    #printArea .rep-sign{margin-top:26px;display:flex;gap:40px;font-size:1em;}
+    #printArea .rep-sign span{flex:1;border-bottom:1px solid #000;padding-bottom:2px;}
+  }
 </style>
 </head>
 <body>
@@ -707,7 +756,7 @@
     <div class="card">
       <h2>Задачи кладовщика <span>что и из какой ячейки нужно перенести</span></h2>
       <div id="tasksSum" class="task-sum"></div>
-      <div class="alerts-row"><button type="button" class="alerts-btn" id="alertsBtn" aria-haspopup="dialog">🔔 <span id="alertsBtnText">Оповещения: выкл</span></button></div>
+      <div class="alerts-row"><button type="button" class="alerts-btn" id="alertsBtn" aria-haspopup="dialog">🔔 <span id="alertsBtnText">Оповещения: выкл</span></button><button type="button" class="alerts-btn rep-open" id="repOpenTasks">🖨 Печать / Excel</button></div>
       <div class="search-box" style="margin-top:12px;"><input type="text" id="tasksSearch" placeholder="Поиск по ячейке, артикулу, сотруднику..."></div>
       <div class="employee-list" id="tasksSort" style="margin-bottom:4px;"></div>
     </div>
@@ -718,6 +767,10 @@
   <div class="panel" id="tab-history">
     <div class="card">
       <h2>История перемещений</h2>
+      <div style="display:flex;flex-wrap:wrap;align-items:center;gap:8px;margin:-4px 0 10px;">
+        <button type="button" class="alerts-btn" id="repOpenHist">🖨 Печать / Excel</button>
+        <span class="muted">Зажмите артикул или ячейку (на компьютере: правая кнопка), чтобы увидеть их историю.</span>
+      </div>
       <label class="muted" style="display:block;margin-bottom:6px;">Сотрудник</label>
       <div class="employee-list" id="historyEmployeeFilter" style="margin-bottom:12px;"></div>
       <div class="search-box">
@@ -957,16 +1010,79 @@
     </form>
   </div>
 </div>
+<div class="qr-modal-overlay" id="histOverlay">
+  <div class="qr-modal-box hist-box" role="dialog" aria-labelledby="histTitle">
+    <button type="button" class="qr-modal-close" id="histClose" aria-label="Закрыть">✕</button>
+    <h3 id="histTitle" style="margin:0 0 2px;padding-right:26px;">История</h3>
+    <div id="histSub" class="muted"></div>
+    <div id="histBody"></div>
+  </div>
+</div>
+<div class="qr-modal-overlay" id="repOverlay">
+  <div class="qr-modal-box rep-box" role="dialog" aria-labelledby="repTitleH">
+    <button type="button" class="qr-modal-close" id="repClose" aria-label="Закрыть">✕</button>
+    <h3 id="repTitleH" style="margin:0 0 4px;padding-right:26px;">Печать и выгрузка в Excel</h3>
+    <div class="muted">Настройте, что попадёт в список. Настройки запоминаются на этом устройстве.</div>
+    <div class="rep-sec">Быстрые настройки</div>
+    <div class="rep-chips" id="repPresets"></div>
+    <div class="rep-sec">Что показать</div>
+    <div class="rep-grid">
+      <label>Статус
+        <select id="repStatus"><option value="pending">В процессе</option><option value="done">Завершённые</option><option value="all">Все</option></select></label>
+      <label>Период
+        <select id="repPeriod"><option value="all">За всё время</option><option value="today">Сегодня</option><option value="yesterday">Вчера</option><option value="7d">Последние 7 дней</option><option value="30d">Последние 30 дней</option><option value="custom">Свои даты</option></select></label>
+      <label>Период считать по
+        <select id="repDateBy"><option value="created">дате создания</option><option value="done">дате завершения</option></select></label>
+      <label>Сотрудник
+        <select id="repEmp"></select></label>
+      <label id="repFromL">С даты <input type="date" id="repFrom"></label>
+      <label id="repToL">По дату <input type="date" id="repTo"></label>
+      <label>Поиск (ячейка, артикул, сотрудник)
+        <input type="text" id="repQ" placeholder="необязательно"></label>
+    </div>
+    <div class="rep-sec">Столбцы</div>
+    <div class="rep-chips" id="repCols"></div>
+    <div class="rep-sec">Вид</div>
+    <div class="rep-grid">
+      <label>Одна строка =
+        <select id="repMode"><option value="pos">одна позиция (товар)</option><option value="tr">один перенос</option></select></label>
+      <label>Сортировка
+        <select id="repSort"><option value="src">по ячейке «Откуда»</option><option value="dst">по ячейке «Куда»</option><option value="emp">по сотруднику</option><option value="time_desc">сначала новые</option><option value="time_asc">сначала старые</option></select></label>
+      <label>Лист
+        <select id="repOrient"><option value="portrait">Книжный</option><option value="landscape">Альбомный</option></select></label>
+      <label>Размер шрифта
+        <select id="repFont"><option value="small">Мелкий</option><option value="normal">Обычный</option><option value="large">Крупный</option></select></label>
+      <label style="grid-column:1/-1;">Заголовок
+        <input type="text" id="repTitle" placeholder="пусто = подставится сам"></label>
+    </div>
+    <div class="rep-opts">
+      <label class="alerts-opt"><input type="checkbox" id="repSign"> <span>Строки для подписей внизу листа</span></label>
+      <label class="alerts-opt"><input type="checkbox" id="repByEmp"> <span>Итоги по сотрудникам</span></label>
+    </div>
+    <div class="rep-sec">Что получится</div>
+    <div id="repInfo" class="muted"></div>
+    <div class="rep-prev" id="repPreview"></div>
+    <div class="rep-actions">
+      <button type="button" class="btn" id="repPrint">🖨 Печать</button>
+      <button type="button" class="btn btn-ghost" id="repXlsx">⬇ Скачать Excel (.xlsx)</button>
+    </div>
+  </div>
+</div>
+<div id="printArea" aria-hidden="true"></div>
 <div class="qr-modal-overlay" id="alertsOverlay">
   <div class="qr-modal-box" style="max-width:380px;text-align:left;" role="dialog" aria-labelledby="alertsTitle">
     <button type="button" class="qr-modal-close" id="alertsClose" aria-label="Закрыть">✕</button>
-    <h3 id="alertsTitle" style="margin:0 0 10px;">Оповещения о новых задачах</h3>
+    <h3 id="alertsTitle" style="margin:0 0 10px;">Сигналы и оповещения</h3>
     <label class="alerts-opt"><input type="checkbox" id="alOn"> <span><b>Включить на этом устройстве</b><br><span class="muted">Когда появится новое перемещение, пока страница открыта</span></span></label>
     <label class="alerts-opt"><input type="checkbox" id="alSound"> <span>Звуковой сигнал</span></label>
     <label class="alerts-opt"><input type="checkbox" id="alVibe"> <span>Вибрация</span></label>
     <label class="alerts-opt"><input type="checkbox" id="alNotify"> <span>Системное уведомление<br><span class="muted">Когда страница в фоне. Лучше всего работает на компьютере, на телефонах может не работать</span></span></label>
     <p class="muted" style="margin:10px 0 0;">Телефон не даёт странице подавать сигнал при выключенном экране. Для этого остаётся бот в Telegram. Если звука нет, коснитесь экрана один раз после открытия страницы.</p>
     <div style="display:flex;gap:8px;margin-top:12px;"><button type="button" class="alerts-btn" id="alTest">Проверить сигнал</button></div>
+    <div class="alerts-sec">Сигнал при сканировании и действиях</div>
+    <label class="alerts-opt"><input type="checkbox" id="fbSound"> <span>Звук: короткий сигнал, когда получилось, и другой при ошибке</span></label>
+    <label class="alerts-opt"><input type="checkbox" id="fbVibe"> <span>Вибрация</span></label>
+    <div style="display:flex;gap:8px;margin-top:6px;"><button type="button" class="alerts-btn" id="fbTest">Проверить: успех и ошибка</button></div>
   </div>
 </div>
 <div class="qr-modal-overlay" id="outboxOverlay">
@@ -2076,7 +2192,7 @@ function scanLoop(){
         stopScan();
         return;
       } else {
-        document.getElementById('scanStatus').textContent = 'QR распознан, но такой ячейки нет в базе (возможно, одна из 2 нераспознанных нами при подготовке).';
+        fbErr(1800); document.getElementById('scanStatus').textContent = 'QR распознан, но такой ячейки нет в базе (возможно, одна из 2 нераспознанных нами при подготовке).';
       }
     }
   }
@@ -2168,10 +2284,39 @@ document.getElementById('syncProjectionBtn').addEventListener('click', () => syn
 // самого WebKit, не наша недоработка) — на iPhone эта функция молча ничего
 // не сделает, вызов безопасен, но эффекта не будет. На Android (Chrome/Firefox)
 // должно работать.
-function vibrateOk(){
-  try {
-    if ('vibrate' in navigator) navigator.vibrate(60);
-  } catch(e) { /* игнорируем — вибрация не критична */ }
+function vibrateOk(){ fbOk(); }
+
+// ---------- v37: звук и вибрация при действиях (настраиваются в окне «Сигналы и оповещения») ----------
+const FB_KEY = 'wt_fb';
+let fbCfg = { sound: true, vibrate: true };
+try { const a = JSON.parse(localStorage.getItem(FB_KEY) || 'null'); if(a && typeof a === 'object') fbCfg = Object.assign(fbCfg, a); } catch(e) {}
+function saveFb_(){ try { localStorage.setItem(FB_KEY, JSON.stringify(fbCfg)); } catch(e) {} }
+function fbTone_(seq, type, vol){
+  const ac = alertAudio();
+  if(!ac) return;
+  const t = ac.currentTime;
+  seq.forEach(([f, d, l]) => {
+    const o = ac.createOscillator(), g = ac.createGain();
+    o.type = type || 'sine'; o.frequency.value = f;
+    g.gain.setValueAtTime(0.0001, t + d);
+    g.gain.exponentialRampToValueAtTime(vol || 0.25, t + d + 0.012);
+    g.gain.exponentialRampToValueAtTime(0.0001, t + d + l);
+    o.connect(g); g.connect(ac.destination);
+    o.start(t + d); o.stop(t + d + l + 0.02);
+  });
+}
+let fbErrAt_ = 0;
+// Внимание: Vibration API не работает в Safari на iPhone (ограничение WebKit); звук там работает.
+function fbOk(){
+  try { if(fbCfg.vibrate && 'vibrate' in navigator) navigator.vibrate(60); } catch(e) {}
+  try { if(fbCfg.sound) fbTone_([[1046, 0, 0.09], [1568, 0.07, 0.09]], 'sine', 0.22); } catch(e) {}
+}
+function fbErr(gapMs){
+  const now = Date.now();
+  if(now - fbErrAt_ < (gapMs || 600)) return;
+  fbErrAt_ = now;
+  try { if(fbCfg.vibrate && 'vibrate' in navigator) navigator.vibrate([120, 70, 120]); } catch(e) {}
+  try { if(fbCfg.sound) fbTone_([[330, 0, 0.16], [247, 0.2, 0.24]], 'square', 0.12); } catch(e) {}
 }
 
 // ---------- toast ----------
@@ -2511,7 +2656,7 @@ async function completeMany(ids){
       state.transfers.forEach(t => { const sn = snap.find(x => x.id === t.id); if(sn){ t.status = sn.status; t.completedAt = sn.completedAt; } });
       repaintNow();
       fireAndForget({ action: 'tg_sync', items: [] }); // Telegram: свериться с таблицей
-      showToast('Не удалось завершить. Проверьте подключение.');
+      showToast('Не удалось завершить. Проверьте подключение.'); fbErr();
     }
   }finally{ opsInFlight--; }
   lastRowsRaw = null; loadState(true);
@@ -2545,7 +2690,7 @@ async function cancelMany(ids){
     state.transfers = state.transfers.concat(back);
     fireAndForget({ action: 'tg_sync', items: [] }); // Telegram: свериться с таблицей
     repaintNow();
-    showToast('Не удалось отменить. Проверьте подключение.');
+    showToast('Не удалось отменить. Проверьте подключение.'); fbErr();
   }finally{ opsInFlight--; }
   lastRowsRaw = null; loadState(true);
 }
@@ -3957,10 +4102,10 @@ async function sendCart(){
     showToast(`Нет связи с сервером: ${plTransfers(queued)} в очереди, отправлю сам, как только связь появится.` + (sent ? ` Уже отправлено: ${sent}.` : ''));
     closeCart();
   } else if(needPwHit){
-    showToast('Нужен пароль сотрудника: выберите себя в списке вверху вкладки «Выставление» и введите пароль. Корзина сохранена.' + (sent ? ` Уже отправлено: ${sent}.` : ''));
+    fbErr(); showToast('Нужен пароль сотрудника: выберите себя в списке вверху вкладки «Выставление» и введите пароль. Корзина сохранена.' + (sent ? ` Уже отправлено: ${sent}.` : ''));
     renderCart();
   } else {
-    showToast(`Отправлено: ${sent}, не удалось: ${failed}. Неотправленное осталось в корзине.`);
+    fbErr(); showToast(`Отправлено: ${sent}, не удалось: ${failed}. Неотправленное осталось в корзине.`);
     renderCart();
   }
   renderDisplay(); updateCartBar();
@@ -6544,6 +6689,9 @@ function openQrModal(code, big){
     });
     document.getElementById('qrDl').addEventListener('click', () => downloadQrPng(code));
   }
+  { const hb = document.createElement('button'); hb.type = 'button'; hb.className = 'btn btn-ghost btn-small'; hb.style.marginTop = '10px'; hb.textContent = '🕘 История ячейки';
+    hb.addEventListener('click', () => { closeQrModal(); histOpen('cell', code); });
+    (content.querySelector('.qr-actions') || content).appendChild(hb); }
   document.getElementById('qrModalOverlay').classList.add('show');
   if(big && pic){ const z = document.getElementById('qrZoom'); if(z) z.click(); }
 }
@@ -6916,6 +7064,490 @@ try {
     if(t && t !== 'display'){ const b = document.querySelector('.tab-btn[data-tab="' + t + '"]'); if(b) b.click(); }
   } catch(e) {}
 })();
+
+// ======================================================================
+// v37: сигналы (настройки), история по товару/ячейке, печатная форма и Excel
+// ======================================================================
+(function wireFb(){
+  const s = document.getElementById('fbSound'), v = document.getElementById('fbVibe');
+  if(!s || !v) return;
+  const paint = () => { s.checked = !!fbCfg.sound; v.checked = !!fbCfg.vibrate; };
+  s.addEventListener('change', () => { fbCfg.sound = s.checked; saveFb_(); if(fbCfg.sound){ alertAudio(); fbOk(); } });
+  v.addEventListener('change', () => { fbCfg.vibrate = v.checked; saveFb_(); if(fbCfg.vibrate) fbOk(); });
+  document.getElementById('fbTest').addEventListener('click', () => { alertAudio(); fbOk(); setTimeout(() => fbErr(1), 650); });
+  // первое касание снимает блокировку звука в браузере
+  document.addEventListener('pointerdown', () => { if(fbCfg.sound) alertAudio(); }, { passive: true });
+  document.getElementById('alertsBtn').addEventListener('click', paint);
+  paint();
+})();
+
+// ---------- 16. История по товару или ячейке ----------
+let histCur_ = null;
+function histOpen(kind, key){
+  key = String(key == null ? '' : key).trim();
+  if(!key) return;
+  histCur_ = { kind, key, all: false };
+  histRender_();
+  document.getElementById('histOverlay').classList.add('show');
+}
+function histRender_(){
+  const { kind, key, all } = histCur_;
+  const names = articleNames();
+  const k = key.toLowerCase();
+  const cellIs = c => { const v = String(c || '').toLowerCase(); return v === k || (isDisplayDest(key) && isDisplayDest(c)); };
+  const list = (state.transfers || []).filter(t => kind === 'art'
+    ? (t.articles || []).some(a => String(a.article) === key)
+    : (cellIs(t.sourceCell) || cellIs(t.destCell)))
+    .sort((a, b) => new Date(b.createdAt) - new Date(a.createdAt));
+  const title = document.getElementById('histTitle'), sub = document.getElementById('histSub'), body = document.getElementById('histBody');
+  const pending = list.filter(t => t.status !== 'done').length;
+  let sum = '';
+  if(kind === 'art'){
+    const qtyOf = t => (t.articles || []).filter(a => String(a.article) === key).reduce((s, a) => s + (Number(a.qty) || 0), 0);
+    const total = list.reduce((s, t) => s + qtyOf(t), 0);
+    title.textContent = 'Артикул ' + key;
+    sub.textContent = names[key] || '';
+    sum = `<span>Переносов: <b>${list.length}</b></span><span>Всего штук: <b>${total}</b></span><span>В процессе: <b>${pending}</b></span>`;
+    var line = t => `<b class="qty-x">×${qtyOf(t)}</b>`;
+  } else {
+    const outN = list.filter(t => cellIs(t.sourceCell)).length, inN = list.filter(t => cellIs(t.destCell)).length;
+    title.textContent = 'Ячейка ' + key;
+    sub.textContent = '';
+    sum = `<span>Взяли отсюда: <b>${outN}</b></span><span>Привезли сюда: <b>${inN}</b></span><span>В процессе: <b>${pending}</b></span>`;
+    var line = t => {
+      const arts = t.articles || [];
+      return arts.slice(0, 3).map(a => `<span class="sku">${escapeHtml(a.article)}</span><b class="qty-x">×${a.qty}</b>`).join(' ') + (arts.length > 3 ? ` <span class="muted">+ ещё ${arts.length - 3}</span>` : '');
+    };
+  }
+  if(!list.length){
+    body.innerHTML = `<div class="hist-sum">${sum}</div><div class="empty-state">По ${kind === 'art' ? 'этому артикулу' : 'этой ячейке'} переносов не найдено.</div>`;
+  } else {
+    const shown = all ? list : list.slice(0, 30);
+    body.innerHTML = `<div class="hist-sum">${sum}</div>` + shown.map(t => {
+      const dir = kind === 'cell' ? (cellIs(t.sourceCell) && !cellIs(t.destCell) ? '<span class="hist-dir">из ячейки</span>' : (cellIs(t.destCell) && !cellIs(t.sourceCell) ? '<span class="hist-dir">в ячейку</span>' : '')) : '';
+      return `<div class="hist-row">
+        <div class="hr-top"><span>${fmtDate(t.createdAt)}${dir}</span>${t.status === 'done' ? '<span class="status-pill status-done">Завершено</span>' : '<span class="status-pill status-pending">В процессе</span>'}</div>
+        <div class="hr-route">${escapeHtml(t.sourceCell)} → ${escapeHtml(t.destCell)}</div>
+        <div>${line(t)}</div>
+        <div class="muted">${escapeHtml(t.employee || '—')}${t.status === 'done' && t.completedAt ? ' · завершено ' + fmtDate(t.completedAt) : ''}</div>
+      </div>`;
+    }).join('') + (list.length > shown.length ? `<div style="margin-top:10px;"><button type="button" class="btn btn-ghost btn-small" id="histAll">Показать все (${list.length})</button></div>` : '');
+  }
+  body.insertAdjacentHTML('beforeend', `<div style="margin-top:12px;"><button type="button" class="btn btn-ghost btn-small" id="histToLog">Найти в журнале</button></div>`);
+  const ba = document.getElementById('histAll');
+  if(ba) ba.addEventListener('click', () => { histCur_.all = true; histRender_(); });
+  document.getElementById('histToLog').addEventListener('click', () => {
+    document.getElementById('histOverlay').classList.remove('show');
+    historyEmployeeFilter = null; renderHistoryEmployeeFilter();
+    document.getElementById('historySearch').value = key;
+    document.querySelector('.tab-btn[data-tab="history"]').click();
+    renderHistory();
+  });
+}
+(function wireHist(){
+  const ov = document.getElementById('histOverlay');
+  document.getElementById('histClose').addEventListener('click', () => ov.classList.remove('show'));
+  ov.addEventListener('click', e => { if(e.target === ov) ov.classList.remove('show'); });
+  // долгое нажатие (телефон/ТСД) и правая кнопка (компьютер) на артикуле или ячейке
+  let timer = null, sx = 0, sy = 0, fired = 0, firedEl = null, openedAt = 0;
+  const pick = el => {
+    if(!el || !el.closest) return null;
+    const a = el.closest('.sku'); if(a) return ['art', a.textContent.trim()];
+    const c = el.closest('.cell-tag'); if(c) return ['cell', (c.dataset.qrCell || c.textContent).trim()];
+    return null;
+  };
+  const stop = () => { if(timer){ clearTimeout(timer); timer = null; } };
+  const openFor = (p) => { openedAt = Date.now(); histOpen(p[0], p[1]); };
+  document.addEventListener('pointerdown', e => {
+    if(e.pointerType === 'mouse') return;      // мышь: правая кнопка, см. contextmenu
+    const p = pick(e.target); if(!p) return;
+    const target = e.target;
+    sx = e.clientX; sy = e.clientY; stop();
+    timer = setTimeout(() => { timer = null; fired = Date.now(); firedEl = target; fbOk(); openFor(p); }, 550);
+  }, { passive: true });
+  document.addEventListener('pointermove', e => { if(timer && (Math.abs(e.clientX - sx) > 10 || Math.abs(e.clientY - sy) > 10)) stop(); }, { passive: true });
+  ['pointerup', 'pointercancel', 'scroll'].forEach(n => document.addEventListener(n, stop, { passive: true, capture: true }));
+  // после долгого нажатия «щелчок» по тому же элементу (открытие QR) не нужен
+  document.addEventListener('click', e => {
+    if(fired && Date.now() - fired < 800 && firedEl && firedEl.contains && firedEl.contains(e.target)){ e.preventDefault(); e.stopPropagation(); fired = 0; }
+  }, true);
+  document.addEventListener('contextmenu', e => {
+    const p = pick(e.target); if(!p) return;
+    e.preventDefault();
+    if(timer){ fired = Date.now(); firedEl = e.target; }   // это долгое нажатие пальцем: следующий щелчок гасим
+    stop();
+    if(Date.now() - openedAt < 800) return;               // уже открыли по таймеру
+    openFor(p);
+  });
+})();
+
+// ---------- 18. Печатная форма и выгрузка в Excel ----------
+const REP_KEY = 'wt_rep_cfg';
+const REP_COLS = [
+  { id: 'n',       t: '№',             w: 5 },
+  { id: 'created', t: 'Создано',       w: 17, date: true },
+  { id: 'emp',     t: 'Сотрудник',     w: 18 },
+  { id: 'src',     t: 'Откуда',        w: 14 },
+  { id: 'dst',     t: 'Куда',          w: 14 },
+  { id: 'art',     t: 'Артикул',       w: 13 },
+  { id: 'name',    t: 'Название',      w: 42 },
+  { id: 'qty',     t: 'Кол-во',        w: 8, num: true },
+  { id: 'status',  t: 'Статус',        w: 13 },
+  { id: 'urgent',  t: 'Срочно',        w: 9 },
+  { id: 'done',    t: 'Завершено',     w: 17, date: true },
+  { id: 'doneby',  t: 'Кто завершил',  w: 16 },
+  { id: 'check',   t: 'Отметка',       w: 9 }
+];
+const REP_BASE = { status: 'pending', period: 'all', dateBy: 'created', from: '', to: '', emp: '', q: '', mode: 'pos', sort: 'src',
+  orient: 'portrait', font: 'normal', title: '', sign: true, byEmp: false, cols: ['n', 'src', 'dst', 'art', 'name', 'qty', 'urgent', 'check'] };
+const REP_PRESETS = [
+  { id: 'shift', label: 'Лист на смену', cfg: {} },
+  { id: 'week',  label: 'Отчёт за неделю', cfg: { status: 'all', period: '7d', dateBy: 'created', sort: 'time_desc', orient: 'landscape', sign: false, byEmp: true,
+    cols: ['created', 'emp', 'src', 'dst', 'art', 'name', 'qty', 'status', 'done', 'doneby'] } },
+  { id: 'month', label: 'Выполненные за месяц', cfg: { status: 'done', period: '30d', dateBy: 'done', sort: 'time_desc', orient: 'landscape', sign: false, byEmp: true,
+    cols: ['done', 'doneby', 'emp', 'src', 'dst', 'art', 'name', 'qty'] } }
+];
+let repCfg = Object.assign({}, REP_BASE);
+try { const a = JSON.parse(localStorage.getItem(REP_KEY) || 'null'); if(a && typeof a === 'object') repCfg = Object.assign(repCfg, a); } catch(e) {}
+if(!Array.isArray(repCfg.cols)) repCfg.cols = REP_BASE.cols.slice();
+function repSave_(){ try { localStorage.setItem(REP_KEY, JSON.stringify(repCfg)); } catch(e) {} }
+
+function repPad_(n){ return (n < 10 ? '0' : '') + n; }
+function repFmt_(iso, withTime){
+  if(!iso) return '';
+  const d = new Date(iso); if(isNaN(d.getTime())) return '';
+  const s = repPad_(d.getDate()) + '.' + repPad_(d.getMonth() + 1) + '.' + d.getFullYear();
+  return withTime === false ? s : s + ' ' + repPad_(d.getHours()) + ':' + repPad_(d.getMinutes());
+}
+function repRange_(c){
+  const now = new Date(), D = 86400000;
+  const sod = new Date(now.getFullYear(), now.getMonth(), now.getDate()).getTime();
+  switch(c.period){
+    case 'today': return [sod, sod + D];
+    case 'yesterday': return [sod - D, sod];
+    case '7d': return [sod - 6 * D, sod + D];
+    case '30d': return [sod - 29 * D, sod + D];
+    case 'custom': {
+      const f = c.from ? new Date(c.from + 'T00:00:00').getTime() : null;
+      const t = c.to ? new Date(c.to + 'T00:00:00').getTime() + D : null;
+      return [isNaN(f) ? null : f, isNaN(t) ? null : t];
+    }
+    default: return [null, null];
+  }
+}
+function repPeriodText_(c){
+  const [f, t] = repRange_(c);
+  switch(c.period){
+    case 'today': return 'сегодня, ' + repFmt_(new Date(f), false);
+    case 'yesterday': return 'вчера, ' + repFmt_(new Date(f), false);
+    case '7d': return 'последние 7 дней';
+    case '30d': return 'последние 30 дней';
+    case 'custom': return (f !== null ? 'с ' + repFmt_(new Date(f), false) : 'до ' + repFmt_(new Date(t - 86400000), false)) + (f !== null && t !== null ? ' по ' + repFmt_(new Date(t - 86400000), false) : '');
+    default: return 'за всё время';
+  }
+}
+function repTitle_(c){
+  if(c.title && c.title.trim()) return c.title.trim();
+  const base = { pending: 'Задачи на перенос', done: 'Выполненные переносы', all: 'Журнал переносов' }[c.status] || 'Переносы';
+  return base + (c.period === 'all' ? '' : ', ' + repPeriodText_(c));
+}
+function repDescr_(c){
+  const st = { pending: 'в процессе', done: 'завершённые', all: 'все' }[c.status];
+  const parts = ['Статус: ' + st, 'Период: ' + repPeriodText_(c) + (c.period !== 'all' ? ' (по дате ' + (c.dateBy === 'done' ? 'завершения' : 'создания') + ')' : '')];
+  if(c.emp) parts.push('Сотрудник: ' + c.emp);
+  if(c.q && c.q.trim()) parts.push('Поиск: ' + c.q.trim());
+  return parts.join('; ');
+}
+function repCmp_(a, b){ return String(a == null ? '' : a).localeCompare(String(b == null ? '' : b), 'ru', { numeric: true, sensitivity: 'base' }); }
+
+// строки отчёта: [{t, art, name, qty, lines}]
+function repBuild_(c){
+  const [f, to] = repRange_(c);
+  const q = (c.q || '').toLowerCase().trim();
+  const names = articleNames();
+  const trs = (state.transfers || []).filter(t => {
+    if(c.status !== 'all' && t.status !== c.status) return false;
+    if(c.emp && t.employee !== c.emp) return false;
+    if(f !== null || to !== null){
+      const iso = c.dateBy === 'done' ? t.completedAt : t.createdAt;
+      if(!iso) return false;
+      const ms = new Date(iso).getTime();
+      if(isNaN(ms) || (f !== null && ms < f) || (to !== null && ms >= to)) return false;
+    }
+    if(q && !((t.sourceCell || '').toLowerCase().includes(q) || (t.destCell || '').toLowerCase().includes(q) || (t.employee || '').toLowerCase().includes(q) || (t.articles || []).some(a => String(a.article).toLowerCase().includes(q)))) return false;
+    return true;
+  });
+  let rows = [];
+  trs.forEach(t => {
+    const arts = t.articles && t.articles.length ? t.articles : [{ article: '', qty: 0 }];
+    if(c.mode === 'tr'){
+      rows.push({ t, art: arts.map(a => a.article + ' ×' + a.qty).join('\n'), name: arts.map(a => names[a.article] || '').join('\n'), qty: arts.reduce((s, a) => s + (Number(a.qty) || 0), 0), nart: arts.length });
+    } else {
+      arts.forEach(a => rows.push({ t, art: String(a.article), name: names[a.article] || '', qty: Number(a.qty) || 0, nart: 1 }));
+    }
+  });
+  const tm = r => new Date(r.t.createdAt).getTime() || 0;
+  const cmps = {
+    src: (a, b) => repCmp_(a.t.sourceCell, b.t.sourceCell) || repCmp_(a.t.destCell, b.t.destCell) || repCmp_(a.art, b.art),
+    dst: (a, b) => repCmp_(a.t.destCell, b.t.destCell) || repCmp_(a.t.sourceCell, b.t.sourceCell) || repCmp_(a.art, b.art),
+    emp: (a, b) => repCmp_(a.t.employee, b.t.employee) || (tm(a) - tm(b)),
+    time_desc: (a, b) => tm(b) - tm(a),
+    time_asc: (a, b) => tm(a) - tm(b)
+  };
+  rows.sort(cmps[c.sort] || cmps.src);
+  rows.forEach((r, i) => { r.n = i + 1; });
+  return { trs, rows };
+}
+function repWho_(t){ return t.status !== 'done' ? '' : ((!t.completedBy || t.completedBy === '__app__') ? 'Сайт' : t.completedBy); }
+// значение ячейки: Date | number | string
+function repVal_(col, r){
+  const t = r.t;
+  switch(col.id){
+    case 'n': return r.n;
+    case 'created': return t.createdAt ? new Date(t.createdAt) : '';
+    case 'emp': return t.employee || '';
+    case 'src': return t.sourceCell || '';
+    case 'dst': return t.destCell || '';
+    case 'art': return r.art;
+    case 'name': return r.name;
+    case 'qty': return r.qty;
+    case 'status': return t.status === 'done' ? 'Завершено' : 'В процессе';
+    case 'urgent': return t.urgent ? 'Да' : '';
+    case 'done': return t.completedAt ? new Date(t.completedAt) : '';
+    case 'doneby': return repWho_(t);
+    default: return '';
+  }
+}
+function repCols_(c){ return REP_COLS.filter(col => c.cols.indexOf(col.id) !== -1); }
+function repTotals_(b){
+  const pos = b.rows.reduce((s, r) => s + r.nart, 0);
+  const qty = b.rows.reduce((s, r) => s + r.qty, 0);
+  return { tr: b.trs.length, pos, qty };
+}
+function repByEmp_(b){
+  const m = new Map();
+  b.rows.forEach(r => {
+    const k = r.t.employee || '—';
+    if(!m.has(k)) m.set(k, { emp: k, trs: new Set(), pos: 0, qty: 0 });
+    const e = m.get(k); e.trs.add(r.t.id); e.pos += r.nart; e.qty += r.qty;
+  });
+  return Array.from(m.values()).map(e => ({ emp: e.emp, tr: e.trs.size, pos: e.pos, qty: e.qty })).sort((a, b) => b.tr - a.tr || repCmp_(a.emp, b.emp));
+}
+
+// --- окно настроек ---
+function repWrite_(){
+  const c = repCfg, $ = id => document.getElementById(id);
+  $('repStatus').value = c.status; $('repPeriod').value = c.period; $('repDateBy').value = c.dateBy;
+  $('repFrom').value = c.from || ''; $('repTo').value = c.to || ''; $('repQ').value = c.q || '';
+  $('repMode').value = c.mode; $('repSort').value = c.sort; $('repOrient').value = c.orient; $('repFont').value = c.font;
+  $('repTitle').value = c.title || ''; $('repSign').checked = !!c.sign; $('repByEmp').checked = !!c.byEmp;
+  const names = [...new Set([...(typeof EMPLOYEES !== 'undefined' ? EMPLOYEES : []), ...(state.transfers || []).map(t => t.employee).filter(Boolean)])];
+  $('repEmp').innerHTML = '<option value="">Все сотрудники</option>' + names.map(n => `<option value="${escapeAttr(n)}">${escapeHtml(n)}</option>`).join('');
+  $('repEmp').value = names.indexOf(c.emp) !== -1 ? c.emp : '';
+  $('repCols').innerHTML = REP_COLS.map(col => `<label class="rep-chip ${c.cols.indexOf(col.id) !== -1 ? 'on' : ''}"><input type="checkbox" data-col="${col.id}" ${c.cols.indexOf(col.id) !== -1 ? 'checked' : ''}> ${escapeHtml(col.t)}</label>`).join('');
+  $('repPresets').innerHTML = REP_PRESETS.map(p => `<button type="button" class="alerts-btn" data-rep-preset="${p.id}">${escapeHtml(p.label)}</button>`).join('');
+  repToggleCustom_();
+}
+function repToggleCustom_(){
+  const on = document.getElementById('repPeriod').value === 'custom';
+  document.getElementById('repFromL').style.display = on ? '' : 'none';
+  document.getElementById('repToL').style.display = on ? '' : 'none';
+}
+function repRead_(){
+  const $ = id => document.getElementById(id);
+  repCfg.status = $('repStatus').value; repCfg.period = $('repPeriod').value; repCfg.dateBy = $('repDateBy').value;
+  repCfg.from = $('repFrom').value; repCfg.to = $('repTo').value; repCfg.emp = $('repEmp').value; repCfg.q = $('repQ').value;
+  repCfg.mode = $('repMode').value; repCfg.sort = $('repSort').value; repCfg.orient = $('repOrient').value; repCfg.font = $('repFont').value;
+  repCfg.title = $('repTitle').value; repCfg.sign = $('repSign').checked; repCfg.byEmp = $('repByEmp').checked;
+  repCfg.cols = Array.from(document.querySelectorAll('#repCols input[data-col]:checked')).map(i => i.dataset.col);
+  document.querySelectorAll('#repCols .rep-chip').forEach(l => l.classList.toggle('on', l.querySelector('input').checked));
+}
+function repRefresh_(){
+  const b = repBuild_(repCfg), tot = repTotals_(b), cols = repCols_(repCfg);
+  const info = document.getElementById('repInfo'), prev = document.getElementById('repPreview');
+  info.innerHTML = `<b>${escapeHtml(repTitle_(repCfg))}</b><br>Переносов: <b>${tot.tr}</b> · позиций: <b>${tot.pos}</b> · штук: <b>${tot.qty}</b>`;
+  if(!cols.length){ prev.innerHTML = '<div class="empty-state">Отметьте хотя бы один столбец.</div>'; return; }
+  if(!b.rows.length){ prev.innerHTML = '<div class="empty-state">По этим настройкам ничего не найдено.</div>'; return; }
+  const cell = (col, r) => { const v = repVal_(col, r); if(v instanceof Date) return escapeHtml(repFmt_(v)); if(col.id === 'check') return '☐'; return escapeHtml(String(v)).replace(/\n/g, '<br>'); };
+  prev.innerHTML = '<table><thead><tr>' + cols.map(c => `<th>${escapeHtml(c.t)}</th>`).join('') + '</tr></thead><tbody>' +
+    b.rows.slice(0, 8).map(r => '<tr>' + cols.map(col => `<td>${cell(col, r)}</td>`).join('') + '</tr>').join('') +
+    (b.rows.length > 8 ? `<tr><td colspan="${cols.length}" class="muted">… и ещё ${b.rows.length - 8}</td></tr>` : '') + '</tbody></table>';
+}
+function repOpen(presetId){
+  if(presetId){ const p = REP_PRESETS.find(x => x.id === presetId); if(p) repCfg = Object.assign({}, REP_BASE, p.cfg, { from: repCfg.from, to: repCfg.to }); }
+  repWrite_(); repRefresh_();
+  document.getElementById('repOverlay').classList.add('show');
+}
+(function wireRep(){
+  const ov = document.getElementById('repOverlay');
+  document.getElementById('repOpenTasks').addEventListener('click', () => repOpen());
+  document.getElementById('repOpenHist').addEventListener('click', () => repOpen());
+  document.getElementById('repClose').addEventListener('click', () => ov.classList.remove('show'));
+  ov.addEventListener('click', e => { if(e.target === ov) ov.classList.remove('show'); });
+  const upd = () => { repRead_(); repToggleCustom_(); repSave_(); repRefresh_(); };
+  ov.addEventListener('input', upd);
+  ov.addEventListener('change', upd);
+  document.getElementById('repPresets').addEventListener('click', e => {
+    const b = e.target.closest('[data-rep-preset]'); if(!b) return;
+    const p = REP_PRESETS.find(x => x.id === b.dataset.repPreset);
+    repCfg = Object.assign({}, REP_BASE, p.cfg, { from: repCfg.from, to: repCfg.to });
+    repSave_(); repWrite_(); repRefresh_();
+  });
+  document.getElementById('repPrint').addEventListener('click', repPrint_);
+  document.getElementById('repXlsx').addEventListener('click', repXlsx_);
+  document.addEventListener('keydown', e => { if(e.key === 'Escape'){ ov.classList.remove('show'); document.getElementById('histOverlay').classList.remove('show'); } });
+})();
+
+// --- печать ---
+function repPrintHtml_(c){
+  const b = repBuild_(c), cols = repCols_(c), tot = repTotals_(b);
+  if(!cols.length || !b.rows.length) return null;
+  const td = (col, r) => {
+    const v = repVal_(col, r);
+    if(col.id === 'check') return '<td><span class="rep-tick"></span></td>';
+    if(v instanceof Date) return `<td class="nw">${escapeHtml(repFmt_(v))}</td>`;
+    return `<td class="${col.num ? 'num' : (['src', 'dst', 'art', 'status', 'urgent', 'n'].indexOf(col.id) !== -1 ? 'nw' : '')}">${escapeHtml(String(v)).replace(/\n/g, '<br>')}</td>`;
+  };
+  let html = `<div class="rep-print f-${c.font}"><h1>${escapeHtml(repTitle_(c))}</h1>
+    <div class="rep-meta">Сформировано ${escapeHtml(repFmt_(new Date()))}${typeof selectedEmployee !== 'undefined' && selectedEmployee ? ' · ' + escapeHtml(selectedEmployee) : ''}<br>${escapeHtml(repDescr_(c))}<br>Переносов: ${tot.tr} · позиций: ${tot.pos} · штук: ${tot.qty}</div>
+    <table><thead><tr>${cols.map(col => `<th>${escapeHtml(col.t)}</th>`).join('')}</tr></thead><tbody>
+    ${b.rows.map(r => '<tr>' + cols.map(col => td(col, r)).join('') + '</tr>').join('')}</tbody></table>`;
+  if(c.byEmp){
+    const be = repByEmp_(b);
+    html += `<h2>Итоги по сотрудникам</h2><table><thead><tr><th>Сотрудник</th><th>Переносов</th><th>Позиций</th><th>Штук</th></tr></thead><tbody>` +
+      be.map(e => `<tr><td>${escapeHtml(e.emp)}</td><td class="num">${e.tr}</td><td class="num">${e.pos}</td><td class="num">${e.qty}</td></tr>`).join('') + '</tbody></table>';
+  }
+  if(c.sign) html += '<div class="rep-sign"><span>Выдал:</span><span>Принял:</span><span>Дата:</span></div>';
+  return html + '</div>';
+}
+function repPrepare_(){
+  repRead_();
+  const html = repPrintHtml_(repCfg);
+  if(!html){ showToast('Нечего печатать: нет строк или не выбраны столбцы'); fbErr(); return null; }
+  const pa = document.getElementById('printArea');
+  pa.innerHTML = html;
+  let st = document.getElementById('repPageStyle');
+  if(!st){ st = document.createElement('style'); st.id = 'repPageStyle'; document.head.appendChild(st); }
+  st.textContent = '@page{size:A4 ' + (repCfg.orient === 'landscape' ? 'landscape' : 'portrait') + ';margin:10mm;}';
+  document.body.classList.add('printing-rep');
+  const done = () => { document.body.classList.remove('printing-rep'); pa.innerHTML = ''; window.removeEventListener('afterprint', done); };
+  window.addEventListener('afterprint', done);
+  return done;
+}
+function repPrint_(){
+  const done = repPrepare_();
+  if(!done) return;
+  setTimeout(() => { try { window.print(); } catch(e) { done(); showToast('На этом устройстве печать недоступна. Скачайте Excel.'); } }, 80);
+  setTimeout(done, 180000);
+}
+
+// --- Excel (.xlsx) без внешних библиотек: простой ZIP без сжатия + разметка листов ---
+const XL_CRC_ = (() => { const t = new Uint32Array(256); for(let n = 0; n < 256; n++){ let c = n; for(let k = 0; k < 8; k++) c = (c & 1) ? (0xEDB88320 ^ (c >>> 1)) : (c >>> 1); t[n] = c >>> 0; } return t; })();
+function xlCrc_(u8){ let c = 0xFFFFFFFF; for(let i = 0; i < u8.length; i++) c = XL_CRC_[(c ^ u8[i]) & 0xFF] ^ (c >>> 8); return (c ^ 0xFFFFFFFF) >>> 0; }
+function xlZip_(files){   // files: [{name, data(string)}]
+  const enc = new TextEncoder(), parts = [], central = [];
+  const now = new Date();
+  const dt = ((now.getHours() << 11) | (now.getMinutes() << 5) | (now.getSeconds() >> 1)) & 0xFFFF;
+  const dd = (((now.getFullYear() - 1980) << 9) | ((now.getMonth() + 1) << 5) | now.getDate()) & 0xFFFF;
+  let offset = 0;
+  files.forEach(f => {
+    const name = enc.encode(f.name), data = enc.encode(f.data), crc = xlCrc_(data);
+    const lh = new DataView(new ArrayBuffer(30));
+    lh.setUint32(0, 0x04034b50, true); lh.setUint16(4, 20, true); lh.setUint16(6, 0x0800, true); lh.setUint16(8, 0, true);
+    lh.setUint16(10, dt, true); lh.setUint16(12, dd, true); lh.setUint32(14, crc, true); lh.setUint32(18, data.length, true); lh.setUint32(22, data.length, true);
+    lh.setUint16(26, name.length, true); lh.setUint16(28, 0, true);
+    parts.push(new Uint8Array(lh.buffer), name, data);
+    const ch = new DataView(new ArrayBuffer(46));
+    ch.setUint32(0, 0x02014b50, true); ch.setUint16(4, 20, true); ch.setUint16(6, 20, true); ch.setUint16(8, 0x0800, true); ch.setUint16(10, 0, true);
+    ch.setUint16(12, dt, true); ch.setUint16(14, dd, true); ch.setUint32(16, crc, true); ch.setUint32(20, data.length, true); ch.setUint32(24, data.length, true);
+    ch.setUint16(28, name.length, true); ch.setUint16(30, 0, true); ch.setUint16(32, 0, true); ch.setUint16(34, 0, true); ch.setUint16(36, 0, true);
+    ch.setUint32(38, 0, true); ch.setUint32(42, offset, true);
+    central.push(new Uint8Array(ch.buffer), name);
+    offset += 30 + name.length + data.length;
+  });
+  let csize = 0; central.forEach(p => { csize += p.length; });
+  const end = new DataView(new ArrayBuffer(22));
+  end.setUint32(0, 0x06054b50, true); end.setUint16(4, 0, true); end.setUint16(6, 0, true);
+  end.setUint16(8, files.length, true); end.setUint16(10, files.length, true); end.setUint32(12, csize, true); end.setUint32(16, offset, true); end.setUint16(20, 0, true);
+  return new Blob(parts.concat(central, [new Uint8Array(end.buffer)]), { type: 'application/vnd.openxmlformats-officedocument.spreadsheetml.sheet' });
+}
+function xlEsc_(s){ return String(s).replace(/[\x00-\x08\x0B\x0C\x0E-\x1F]/g, '').replace(/&/g, '&amp;').replace(/</g, '&lt;').replace(/>/g, '&gt;').replace(/"/g, '&quot;'); }
+function xlCol_(i){ let s = ''; i++; while(i > 0){ const m = (i - 1) % 26; s = String.fromCharCode(65 + m) + s; i = Math.floor((i - 1) / 26); } return s; }
+// стили: 0 обычный, 1 шапка, 2 дата, 3 жирный, 4 перенос строк
+function xlSheet_(rows, widths, opts){
+  opts = opts || {};
+  const ncol = Math.max(1, ...rows.map(r => r.length));
+  let x = '<?xml version="1.0" encoding="UTF-8" standalone="yes"?><worksheet xmlns="http://schemas.openxmlformats.org/spreadsheetml/2006/main">';
+  if(opts.freeze) x += '<sheetViews><sheetView workbookViewId="0"><pane ySplit="1" topLeftCell="A2" activePane="bottomLeft" state="frozen"/></sheetView></sheetViews>';
+  if(widths && widths.length) x += '<cols>' + widths.map((w, i) => `<col min="${i + 1}" max="${i + 1}" width="${w}" customWidth="1"/>`).join('') + '</cols>';
+  x += '<sheetData>';
+  rows.forEach((r, ri) => {
+    x += `<row r="${ri + 1}">`;
+    r.forEach((v, ci) => {
+      if(v === null || v === undefined || v === '') return;
+      const ref = xlCol_(ci) + (ri + 1);
+      let st = (opts.header && ri === 0) ? 1 : ((opts.boldRows && opts.boldRows.indexOf(ri) !== -1) ? 3 : 0);
+      if(v instanceof Date){
+        const serial = (v.getTime() - v.getTimezoneOffset() * 60000) / 86400000 + 25569;
+        x += `<c r="${ref}" s="2"><v>${serial.toFixed(6)}</v></c>`;
+      } else if(typeof v === 'number'){
+        x += `<c r="${ref}" s="${st}"><v>${v}</v></c>`;
+      } else {
+        const s = String(v);
+        if(st === 0 && s.indexOf('\n') !== -1) st = 4;
+        x += `<c r="${ref}" s="${st}" t="inlineStr"><is><t xml:space="preserve">${xlEsc_(s)}</t></is></c>`;
+      }
+    });
+    x += '</row>';
+  });
+  x += '</sheetData>';
+  if(opts.filter && rows.length > 1) x += `<autoFilter ref="A1:${xlCol_(ncol - 1)}${rows.length}"/>`;
+  return x + '</worksheet>';
+}
+function xlsxBlob_(sheets){   // sheets: [{name, rows, widths, opts}]
+  const NS = 'http://schemas.openxmlformats.org/spreadsheetml/2006/main';
+  const files = [
+    { name: '[Content_Types].xml', data: '<?xml version="1.0" encoding="UTF-8" standalone="yes"?><Types xmlns="http://schemas.openxmlformats.org/package/2006/content-types"><Default Extension="rels" ContentType="application/vnd.openxmlformats-package.relationships+xml"/><Default Extension="xml" ContentType="application/xml"/><Override PartName="/xl/workbook.xml" ContentType="application/vnd.openxmlformats-officedocument.spreadsheetml.sheet.main+xml"/><Override PartName="/xl/styles.xml" ContentType="application/vnd.openxmlformats-officedocument.spreadsheetml.styles+xml"/>' + sheets.map((s, i) => `<Override PartName="/xl/worksheets/sheet${i + 1}.xml" ContentType="application/vnd.openxmlformats-officedocument.spreadsheetml.worksheet+xml"/>`).join('') + '</Types>' },
+    { name: '_rels/.rels', data: '<?xml version="1.0" encoding="UTF-8" standalone="yes"?><Relationships xmlns="http://schemas.openxmlformats.org/package/2006/relationships"><Relationship Id="rId1" Type="http://schemas.openxmlformats.org/officeDocument/2006/relationships/officeDocument" Target="xl/workbook.xml"/></Relationships>' },
+    { name: 'xl/workbook.xml', data: `<?xml version="1.0" encoding="UTF-8" standalone="yes"?><workbook xmlns="${NS}" xmlns:r="http://schemas.openxmlformats.org/officeDocument/2006/relationships"><sheets>` + sheets.map((s, i) => `<sheet name="${xlEsc_(s.name)}" sheetId="${i + 1}" r:id="rId${i + 1}"/>`).join('') + '</sheets></workbook>' },
+    { name: 'xl/_rels/workbook.xml.rels', data: '<?xml version="1.0" encoding="UTF-8" standalone="yes"?><Relationships xmlns="http://schemas.openxmlformats.org/package/2006/relationships">' + sheets.map((s, i) => `<Relationship Id="rId${i + 1}" Type="http://schemas.openxmlformats.org/officeDocument/2006/relationships/worksheet" Target="worksheets/sheet${i + 1}.xml"/>`).join('') + `<Relationship Id="rId${sheets.length + 1}" Type="http://schemas.openxmlformats.org/officeDocument/2006/relationships/styles" Target="styles.xml"/></Relationships>` },
+    { name: 'xl/styles.xml', data: `<?xml version="1.0" encoding="UTF-8" standalone="yes"?><styleSheet xmlns="${NS}"><numFmts count="1"><numFmt numFmtId="164" formatCode="dd\\.mm\\.yyyy\\ hh:mm"/></numFmts><fonts count="2"><font><sz val="11"/><name val="Calibri"/></font><font><b/><sz val="11"/><name val="Calibri"/></font></fonts><fills count="3"><fill><patternFill patternType="none"/></fill><fill><patternFill patternType="gray125"/></fill><fill><patternFill patternType="solid"><fgColor rgb="FFE8EAEE"/><bgColor indexed="64"/></patternFill></fill></fills><borders count="2"><border><left/><right/><top/><bottom/><diagonal/></border><border><left/><right/><top/><bottom style="thin"><color rgb="FF888888"/></bottom><diagonal/></border></borders><cellStyleXfs count="1"><xf numFmtId="0" fontId="0" fillId="0" borderId="0"/></cellStyleXfs><cellXfs count="5"><xf numFmtId="0" fontId="0" fillId="0" borderId="0" xfId="0"/><xf numFmtId="0" fontId="1" fillId="2" borderId="1" xfId="0" applyFont="1" applyFill="1" applyBorder="1"><alignment vertical="center" wrapText="1"/></xf><xf numFmtId="164" fontId="0" fillId="0" borderId="0" xfId="0" applyNumberFormat="1"/><xf numFmtId="0" fontId="1" fillId="0" borderId="0" xfId="0" applyFont="1"/><xf numFmtId="0" fontId="0" fillId="0" borderId="0" xfId="0" applyAlignment="1"><alignment vertical="top" wrapText="1"/></xf></cellXfs><cellStyles count="1"><cellStyle name="Normal" xfId="0" builtinId="0"/></cellStyles></styleSheet>` }
+  ];
+  sheets.forEach((s, i) => files.push({ name: `xl/worksheets/sheet${i + 1}.xml`, data: xlSheet_(s.rows, s.widths, s.opts) }));
+  return xlZip_(files);
+}
+function repXlsxBlob_(c){
+  const b = repBuild_(c), cols = repCols_(c), tot = repTotals_(b);
+  if(!cols.length || !b.rows.length) return null;
+  const main = [cols.map(col => col.t)];
+  b.rows.forEach(r => main.push(cols.map(col => col.id === 'check' ? '' : repVal_(col, r))));
+  const sum = [[repTitle_(c)], [repDescr_(c)], ['Сформировано: ' + repFmt_(new Date())], [], ['Переносов', tot.tr], ['Позиций', tot.pos], ['Штук', tot.qty]];
+  if(c.byEmp){
+    sum.push([], ['Сотрудник', 'Переносов', 'Позиций', 'Штук']);
+    const start = sum.length - 1;
+    repByEmp_(b).forEach(e => sum.push([e.emp, e.tr, e.pos, e.qty]));
+    var bold = [0, start];
+  }
+  return xlsxBlob_([
+    { name: 'Переносы', rows: main, widths: cols.map(col => col.w), opts: { header: true, freeze: true, filter: true } },
+    { name: 'Итоги', rows: sum, widths: [34, 14, 12, 10], opts: { boldRows: bold || [0] } }
+  ]);
+}
+function repXlsx_(){
+  repRead_();
+  const blob = repXlsxBlob_(repCfg);
+  if(!blob){ showToast('Нечего выгружать: нет строк или не выбраны столбцы'); fbErr(); return; }
+  const d = new Date();
+  const name = 'perenosy_' + d.getFullYear() + '-' + repPad_(d.getMonth() + 1) + '-' + repPad_(d.getDate()) + '_' + repPad_(d.getHours()) + repPad_(d.getMinutes()) + '.xlsx';
+  const url = URL.createObjectURL(blob);
+  const a = document.createElement('a');
+  a.href = url; a.download = name; a.style.display = 'none';
+  document.body.appendChild(a); a.click();
+  setTimeout(() => { URL.revokeObjectURL(url); a.remove(); }, 15000);
+  showToast('Файл ' + name + ' сохранён в загрузки');
+  fbOk();
+}
+
 </script>
 </body>
 </html>
