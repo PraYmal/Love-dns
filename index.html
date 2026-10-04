@@ -206,6 +206,8 @@
   .status-pending{background:var(--orange-dim);color:var(--orange-soft);}
   .status-done{background:var(--green-dim);color:var(--green);}
   .status-stale{background:var(--red-dim);color:var(--red);}
+  .status-cancelled{background:rgba(140,150,170,.2);color:var(--text-dim);}
+  tr.cancel-row td{opacity:.7;}
   tr.stale-row td{background:rgba(255,93,93,0.06);}
 
   .cell-tag{
@@ -597,6 +599,7 @@
   .urg-check{display:flex;gap:9px;align-items:flex-start;margin:10px 0;padding:10px 12px;border:1px solid var(--line);border-radius:10px;cursor:pointer;font-size:13.5px;line-height:1.4;}
   .urg-check input{margin-top:2px;width:17px;height:17px;flex:none;}
   .urg-check.on{border-color:var(--red);background:var(--red-dim);}
+  .urg-check.self.on{border-color:var(--green);background:var(--green-dim);}
   .msg-grid{display:grid;grid-template-columns:minmax(0,1.15fr) minmax(0,1fr);gap:18px;align-items:start;}
   @media (max-width:860px){.msg-grid{grid-template-columns:minmax(0,1fr);}}
   .msg-prev{position:sticky;top:8px;}
@@ -956,6 +959,14 @@
     <p class="muted" style="margin:0 0 12px;">Каждая ячейка станет одним перемещением «ячейка → Витрина». Кладовщик увидит, что и откуда взять.</p>
     <div id="cartContent"></div>
     <label class="urg-check" id="cartUrgentLbl"><input type="checkbox" id="cartUrgent"><span><b>🔥 Срочно</b><br><span class="muted" style="font-size:12.5px;">Задача встанет в начало очереди кладовщика, в Telegram придёт с пометкой «СРОЧНО».</span></span></label>
+    <div id="cartSelfBox" style="display:none;">
+      <div class="rep-actions" style="margin:10px 0 0;">
+        <button type="button" class="btn btn-ghost" id="cartPrintBtn">🖨 Печать списка</button>
+        <button type="button" class="btn btn-ghost" id="cartXlsxBtn">⬇ Excel</button>
+        <button type="button" class="btn btn-ghost" id="cartPrintCfg" title="Столбцы, сортировка, размер листа" style="flex:0 0 auto;">⚙ Настроить лист</button>
+      </div>
+      <label class="urg-check self" id="cartSelfLbl"><input type="checkbox" id="cartSelf"><span><b>✅ Выполню сам</b><br><span class="muted" style="font-size:12.5px;">Переносы сразу запишутся как выполненные, кладовщику в Telegram они не придут. Сначала распечатайте список: после записи корзина очистится. Перед записью спросим подтверждение.</span></span></label>
+    </div>
     <div id="cartEmployee" class="muted" style="margin:10px 0;font-size:12.5px;"></div>
     <div style="display:flex;gap:8px;flex-wrap:wrap;">
       <button type="button" class="btn btn-primary" id="cartSendBtn" style="flex:1;min-width:200px;">Отправить кладовщику</button>
@@ -1065,6 +1076,36 @@
     <div class="rep-actions">
       <button type="button" class="btn" id="repPrint">🖨 Печать</button>
       <button type="button" class="btn btn-ghost" id="repXlsx">⬇ Скачать Excel (.xlsx)</button>
+    </div>
+  </div>
+</div>
+<div class="qr-modal-overlay" id="cpOverlay">
+  <div class="qr-modal-box rep-box" role="dialog" aria-labelledby="cpTitleH">
+    <button type="button" class="qr-modal-close" id="cpClose" aria-label="Закрыть">✕</button>
+    <h3 id="cpTitleH" style="margin:0 0 4px;padding-right:26px;">Лист для переноса из корзины</h3>
+    <div class="muted">Настройки запоминаются для этого сотрудника на этом устройстве и не сбрасываются.</div>
+    <div class="rep-sec">Столбцы</div>
+    <div class="rep-chips" id="cpCols"></div>
+    <div class="rep-sec">Вид</div>
+    <div class="rep-grid">
+      <label>Сортировка
+        <select id="cpSort"><option value="src">по ячейке «Откуда»</option><option value="art">по артикулу</option><option value="name">по названию</option></select></label>
+      <label>Лист
+        <select id="cpOrient"><option value="portrait">Книжный</option><option value="landscape">Альбомный</option></select></label>
+      <label>Размер шрифта
+        <select id="cpFont"><option value="small">Мелкий</option><option value="normal">Обычный</option><option value="large">Крупный</option></select></label>
+      <label style="grid-column:1/-1;">Заголовок
+        <input type="text" id="cpTitle" placeholder="пусто = «Список для переноса на витрину»"></label>
+    </div>
+    <div class="rep-opts">
+      <label class="alerts-opt"><input type="checkbox" id="cpSign"> <span>Строки для подписей внизу листа</span></label>
+    </div>
+    <div class="rep-sec">Что получится</div>
+    <div id="cpInfo" class="muted"></div>
+    <div class="rep-prev" id="cpPreview"></div>
+    <div class="rep-actions">
+      <button type="button" class="btn" id="cpPrint">🖨 Печать</button>
+      <button type="button" class="btn btn-ghost" id="cpXlsx">⬇ Скачать Excel (.xlsx)</button>
     </div>
   </div>
 </div>
@@ -1536,7 +1577,17 @@ function empTokenDrop_(name){ const o = empTokens_(); const k = Object.keys(o).f
 function empNeedsPw(name){ const l = String(name || '').trim().toLowerCase(); return !!l && EMP_PW_NAMES.some(n => String(n).toLowerCase() === l); }
 function empAuthOk(name){ return !empNeedsPw(name) || !!empTokenFor(name); }
 function empPwSetNames_(list){ if(!Array.isArray(list)) return; EMP_PW_NAMES = list.map(String); try { localStorage.setItem(EMP_PW_CACHE_KEY, JSON.stringify(EMP_PW_NAMES)); } catch(e) {} }
-const EMP_GATED_RE = /^(add|notify|add_many|notify_many|place|request_stock)$/;
+const EMP_SELF_CACHE_KEY = 'wt_emp_self';
+let EMP_SELF_NAMES = [];
+try { const c = JSON.parse(localStorage.getItem(EMP_SELF_CACHE_KEY) || 'null'); if(Array.isArray(c)) EMP_SELF_NAMES = c.map(String); } catch(e) {}
+function empCanSelf(name){ const l = String(name || '').trim().toLowerCase(); return !!l && EMP_SELF_NAMES.some(n => String(n).toLowerCase() === l); }
+function empSelfSetNames_(list){
+  if(!Array.isArray(list)) return;
+  EMP_SELF_NAMES = list.map(String);
+  try { localStorage.setItem(EMP_SELF_CACHE_KEY, JSON.stringify(EMP_SELF_NAMES)); } catch(e) {}
+  try { cartModeUi_(); } catch(e) {}
+}
+const EMP_GATED_RE = /^(add|notify|add_many|notify_many|place|request_stock|add_self)$/;
 function empInject_(p){
   if(p && p.employee && !p.empToken && EMP_GATED_RE.test(String(p.action || ''))){ const t = empTokenFor(p.employee); if(t) p.empToken = t; }
   return p;
@@ -1787,6 +1838,7 @@ async function fetchConfig(){
     }
     telegramEnabled = !!(cfg && cfg.telegramEnabled);
     if(cfg && Array.isArray(cfg.empPw)) empPwSetNames_(cfg.empPw);
+    if(cfg && Array.isArray(cfg.empSelf)) empSelfSetNames_(cfg.empSelf);
     if(selectedEmployee && empNeedsPw(selectedEmployee) && !empTokenFor(selectedEmployee)){
       selectedEmployee = null;
       try { localStorage.removeItem(EMPLOYEE_STORAGE_KEY); } catch(e) {}
@@ -2032,6 +2084,7 @@ async function loadState(silent){
   rebuildVitrinaItems();
   render();
   try { checkNewTasks(); } catch(e) {}
+  try { if(document.getElementById('tab-history').classList.contains('active')) loadCancels_(true); } catch(e) {}
 }
 
 function showConfigBanner(){
@@ -2249,6 +2302,7 @@ document.querySelectorAll('.tab-btn').forEach(btn=>{
       await loadState(true);
     }
     if(btn.dataset.tab === 'history'){
+      loadCancels_(false);
       await loadState(true);
     }
     if(btn.dataset.tab === 'inventory'){
@@ -2829,6 +2883,41 @@ function renderTasks(){
 function renderPickList(){ renderTasks(); }
 document.getElementById('tasksSearch').addEventListener('input', e => { tasksQuery = e.target.value; renderTasks(); });
 
+// ---- v40: отменённые перемещения в «Истории» ----
+const CANCELS_KEY = 'wt_cancels';
+let cancelledList = [], cancelsAt = 0, cancelsBusy = false, cancelsSig = '', cancelsOff = false;
+try { const c = JSON.parse(localStorage.getItem(CANCELS_KEY) || 'null'); if(Array.isArray(c)){ cancelledList = c; cancelsSig = JSON.stringify(c); } } catch(e) {}
+function cancelToTr_(c){
+  return { id: String(c.id), createdAt: c.createdAt || c.cancelledAt, sourceCell: c.src || '—', destCell: c.dst || '—', status: 'cancelled',
+    completedAt: null, completedBy: '', employee: c.emp || '', articles: (c.articles || []).map(a => ({ article: String(a.article), qty: Number(a.qty) || 0 })),
+    cancelledAt: c.cancelledAt, cancelBy: c.by, was: c.was, n: c.n || 0 };
+}
+function cancelInfoHtml_(t){
+  const where = t.cancelBy === 'admin' ? 'в админке' : 'на сайте';
+  return `${fmtDate(t.cancelledAt)}<div class="muted" style="font-size:12px;">Отменено ${where}${t.was === 'done' ? ' (уже было выполнено)' : ''}${t.articles.length ? '' : '<br>состав не сохранился'}</div>`;
+}
+async function loadCancels_(force){
+  if(cancelsBusy || cancelsOff || !isConfigured()) return;
+  if(!force && Date.now() - cancelsAt < 30000) return;
+  cancelsBusy = true;
+  try{
+    const res = await fetchTimeout_(`${APPS_SCRIPT_URL}?data=cancels`, 15000);
+    if(!res.ok) throw new Error('HTTP ' + res.status);
+    const j = await res.json();
+    if(Array.isArray(j)){ cancelsOff = true; return; }
+    if(j && j.ok !== false && Array.isArray(j.items)){
+      cancelsAt = Date.now();
+      const sig = JSON.stringify(j.items);
+      if(sig !== cancelsSig){
+        cancelsSig = sig; cancelledList = j.items;
+        try { localStorage.setItem(CANCELS_KEY, sig); } catch(e) {}
+        if(document.getElementById('tab-history').classList.contains('active')) renderHistory();
+      }
+    }
+  }catch(e){  }
+  finally { cancelsBusy = false; }
+}
+
 function renderHistory(){
   renderPickList();
   const names = articleNames();
@@ -2836,6 +2925,11 @@ function renderHistory(){
   const q = (document.getElementById('historySearch').value || '').toLowerCase().trim();
 
   let items = state.transfers;
+  if(cancelledList.length){
+    const live = new Set(items.map(t => t.id));
+    const cx = cancelledList.filter(c => !live.has(c.id)).map(cancelToTr_);
+    if(cx.length) items = items.concat(cx).sort((a, b) => new Date(b.createdAt) - new Date(a.createdAt));
+  }
   if(historyEmployeeFilter){
     items = items.filter(t => t.employee === historyEmployeeFilter);
   }
@@ -2869,16 +2963,16 @@ function renderHistory(){
       <tbody>
         ${items.map(t=>{
           const isStale = t.status === 'pending' && (Date.now() - new Date(t.createdAt).getTime()) > STALE_HOURS * 3600 * 1000;
-          const statusClass = t.status === 'done' ? 'status-done' : (isStale ? 'status-stale' : 'status-pending');
-          const statusLabel = t.status === 'done' ? 'Завершено' : (isStale ? `В процессе >${STALE_HOURS}ч` : 'В процессе');
+          const statusClass = t.status === 'cancelled' ? 'status-cancelled' : (t.status === 'done' ? 'status-done' : (isStale ? 'status-stale' : 'status-pending'));
+          const statusLabel = t.status === 'cancelled' ? 'Отменено' : t.status === 'done' ? 'Завершено' : (isStale ? `В процессе >${STALE_HOURS}ч` : 'В процессе');
           return `
-          <tr class="${isStale ? 'stale-row' : ''}">
+          <tr class="${isStale ? 'stale-row' : ''}${t.status === 'cancelled' ? ' cancel-row' : ''}">
             <td data-label="Создано">${fmtDate(t.createdAt)}</td>
             <td data-label="Сотрудник">${escapeHtml(t.employee || '—')}</td>
             <td data-label="Маршрут"><button type="button" class="cell-tag" data-qr-cell="${escapeAttr(t.sourceCell)}">${escapeHtml(t.sourceCell)}</button><span class="arrow-inline">→</span><button type="button" class="cell-tag" data-qr-cell="${escapeAttr(t.destCell)}">${escapeHtml(t.destCell)}</button></td>
             <td data-label="Товары">${t.articles.map(a=>`<span class="sku">${escapeHtml(a.article)}</span><b class="qty-x">×${a.qty}</b>${names[a.article] ? escapeHtml(names[a.article].slice(0,50)) : ''}`).join('<br>')}${isDisplayDest(t.destCell) ? '<span class="badge-display">🛒 на витрину</span>' : ''}</td>
             <td data-label="Статус"><span class="status-pill ${statusClass}">${statusLabel}</span>${t.urgent && t.status === 'pending' ? ' <span class="tag-urg">🔥 срочно</span>' : ''}</td>
-            <td data-label="Завершено">${fmtDate(t.completedAt)}${doneByHtml(t)}</td>
+            <td data-label="Завершено">${t.status === 'cancelled' ? cancelInfoHtml_(t) : fmtDate(t.completedAt) + doneByHtml(t)}</td>
             <td>
               ${t.status==='pending'
                 ? `<button class="btn btn-done btn-small" data-complete="${t.id}">Завершить</button>
@@ -3453,7 +3547,7 @@ function toggleCartCell(code, cell){
     const room = (lim.need[code] || 0) - cartQtyFor(code);
     if(room <= 0){ showToast((lim.claimQty && lim.claimQty[code] > 0) ? 'Этот товар сейчас набирает другой сотрудник — подождите или возьмите другое' : 'По этому товару уже набрано нужное количество'); return; }
     const ci = cell ? (lim.byArticle[code] || []).find(c => c.cell === cell) : null;
-    displayCart.push({ id: newLineId(), code, name: it ? it.name : code, cell, manual: cell === '', qty: Math.max(1, Math.min(room, ci ? ci.qty : room)) });
+    displayCart.push({ id: newLineId(), code, name: it ? it.name : code, cell, manual: cell === '', qty: 1 });
   }
   saveCart(); renderDisplay(); updateCartBar();
 }
@@ -3813,9 +3907,84 @@ function renderCart(){
     });
   });
   const groupsCount = cellKeys.filter(c => c !== '').length;
-  document.getElementById('cartSendBtn').textContent = `Отправить кладовщику (${plTransfers(groupsCount)})`;
+  cartModeUi_();
   document.getElementById('cartEmployee').textContent = selectedEmployee ? `Сотрудник: ${selectedEmployee}` : 'Сотрудник не выбран — выберите в верху вкладки';
   updateCartBar();
+}
+
+function cartSelfOn_(){ const el = document.getElementById('cartSelf'); return !!(el && el.checked && selectedEmployee && empCanSelf(selectedEmployee)); }
+function cartModeUi_(){
+  const box = document.getElementById('cartSelfBox'), chk = document.getElementById('cartSelf');
+  if(!box || !chk) return;
+  const can = !!(selectedEmployee && empCanSelf(selectedEmployee));
+  box.style.display = can ? '' : 'none';
+  if(!can && chk.checked) chk.checked = false;
+  const on = cartSelfOn_();
+  document.getElementById('cartSelfLbl').classList.toggle('on', on);
+  document.getElementById('cartUrgentLbl').style.display = on ? 'none' : '';
+  const n = new Set(displayCart.map(l => l.cell).filter(c => c !== '')).size;
+  document.getElementById('cartSendBtn').textContent = on ? `Записать как выполненное (${plTransfers(n)})` : `Отправить кладовщику (${plTransfers(n)})`;
+}
+let selfRetry_ = null;
+async function sendCartSelf_(){
+  const groups = {};
+  displayCart.forEach(l => { (groups[l.cell] = groups[l.cell] || []).push(l); });
+  const cellList = Object.keys(groups);
+  const pcs = displayCart.reduce((a, l) => a + l.qty, 0);
+  if(!confirm(`Записать как ВЫПОЛНЕННЫЕ: ${plTransfers(cellList.length)}, ${pcs} шт. → ${DISPLAY_CELL}?\n\nОстатки изменятся сразу, кладовщику в Telegram эти переносы не придут. Нажимайте «ОК», только если вы сами перенесёте (или уже перенесли) этот товар. Отменить запись потом можно только через админку.\n\nСписок уже распечатан или сохранён?`)) return;
+  const sig = JSON.stringify(displayCart.map(l => [l.cell, l.code, l.qty]).sort());
+  if(!selfRetry_ || selfRetry_.sig !== sig) selfRetry_ = { sig, ids: {} };
+  const createdAt = new Date().toISOString();
+  const pack = cellList.map(cell => {
+    const lines = groups[cell], byCode = {};
+    lines.forEach(l => { byCode[l.code] = (byCode[l.code] || 0) + l.qty; });
+    const id = selfRetry_.ids[cell] || (selfRetry_.ids[cell] = 'tr_' + Date.now() + '_' + Math.random().toString(36).slice(2,7));
+    return { cell, lines, tr: { id, createdAt, sourceCell: cell, destCell: DISPLAY_CELL, articles: Object.entries(byCode).map(([article, qty]) => ({ article, qty })), employee: selectedEmployee } };
+  });
+  pack.forEach(p => localIds.add(p.tr.id));
+  displayCreating = true;
+  const btn = document.getElementById('cartSendBtn'); btn.disabled = true;
+  let resp = null, err = null;
+  opsInFlight++;
+  try{ resp = await apiPostStrict({ action: 'add_self', employee: selectedEmployee, items: pack.map(p => p.tr) }, { timeout: 30000 }); }
+  catch(e){ err = e; }
+  finally { opsInFlight--; }
+  displayCreating = false; btn.disabled = false;
+  if(err || !(resp && resp.results && typeof resp.results === 'object')){
+    const msg = String((err && err.message) || 'ответ без результатов');
+    fbErr();
+    if(err && err.needPw) showToast('Пропуск сотрудника истёк: выберите себя в списке заново и введите пароль. Корзина сохранена.');
+    else if(/Unknown action/i.test(msg)) showToast('Сервер ещё не обновлён (нет режима «выполню сам»). Корзина сохранена.');
+    else if(/не разрешено/i.test(msg)){ showToast(msg); try { fetchConfig(); } catch(e2) {} }
+    else if(isNetErr_ && isNetErr_(err)) showToast('Нет связи: перенос НЕ записан. Корзина сохранена, повторите, когда связь появится.');
+    else showToast('Не удалось записать: ' + msg + '. Корзина сохранена.');
+    renderCart();
+    return;
+  }
+  const doneAt = new Date().toISOString();
+  let sent = 0, failed = 0;
+  pack.forEach(p => {
+    const st = resp.results[p.tr.id];
+    if(st === 'ok' || st === 'dup'){
+      sent++;
+      const ids = new Set(p.lines.map(l => l.id)); displayCart = displayCart.filter(l => !ids.has(l.id));
+      state.transfers.unshift({ id: p.tr.id, createdAt, sourceCell: p.cell, destCell: DISPLAY_CELL, status: 'done', completedAt: doneAt, completedBy: '__self__', employee: selectedEmployee, deferredAt: 0, urgent: false, articles: p.tr.articles.map(a => ({ article: a.article, qty: a.qty })) });
+    } else failed++;
+  });
+  saveCart();
+  const cs = document.getElementById('cartSelf'); if(cs) cs.checked = false;
+  repaintNow();
+  loadState(true);
+  if(failed === 0){
+    selfRetry_ = null;
+    showToast(`Записано как выполненное: ${plTransfers(sent)}`);
+    vibrateOk();
+    closeCart();
+  } else {
+    fbErr(); showToast(`Записано: ${sent}, не удалось: ${failed}. Остальное осталось в корзине.`);
+    renderCart();
+  }
+  renderDisplay(); updateCartBar();
 }
 
 let lastTr_ = null;
@@ -3837,6 +4006,7 @@ async function sendCart(){
   }
   const unknownCells = [...new Set(displayCart.map(l => l.cell))].filter(c => !CELLS.includes(cellCode(c)));
   if(unknownCells.length && !confirm(`Ячеек нет в списке склада: ${unknownCells.join(', ')}. Всё равно создать перемещения?`)) return;
+  if(cartSelfOn_()) return sendCartSelf_();
 
   displayCreating = true;
   const btn = document.getElementById('cartSendBtn'); btn.disabled = true;
@@ -3956,6 +4126,10 @@ document.getElementById('cartClose').addEventListener('click', closeCart);
 document.getElementById('cartOverlay').addEventListener('click', e => { if(e.target.id === 'cartOverlay') closeCart(); });
 document.getElementById('cartSendBtn').addEventListener('click', sendCart);
 document.getElementById('cartUrgent').addEventListener('change', e => document.getElementById('cartUrgentLbl').classList.toggle('on', e.target.checked));
+document.getElementById('cartSelf').addEventListener('change', cartModeUi_);
+document.getElementById('cartPrintBtn').addEventListener('click', () => cpPrint_());
+document.getElementById('cartXlsxBtn').addEventListener('click', () => cpXlsx_());
+document.getElementById('cartPrintCfg').addEventListener('click', () => cpOpen_());
 document.getElementById('cartClearBtn').addEventListener('click', () => {
   if(!confirm('Очистить корзину?')) return;
   displayCart = []; saveCart(); renderCart(); renderDisplay();
@@ -4225,12 +4399,14 @@ function renderAdminEmployees(body){
       <h2>Сотрудники <span>список в выпадающем меню</span></h2>
       <p class="muted" style="margin-top:-6px;">Удаление сотрудника не стирает его историю — старые переносы останутся с его именем.</p>
       <p class="muted" style="margin-top:-2px;">🔑 Пароль сотрудника: когда он выбирает себя в «Выставлении», сайт спрашивает пароль. Без пароля сотрудник выбирается как раньше. Это защита от выбора чужого имени, а не полноценная авторизация: сам сайт по-прежнему открыт всем, у кого есть ссылка.</p>
+      <p class="muted" style="margin-top:-2px;">✋ «Сам»: для тех, кто привык переносить по бумажному листу без кладовщика. В корзине у такого сотрудника появятся печать, Excel и галочка «Выполню сам» (переносы сразу записываются выполненными, в Telegram они не уходят). Право проверяет сервер. Таким сотрудникам рекомендуется задать пароль: без пароля имя может выбрать кто угодно.</p>
       <div id="admEmpList">${EMPLOYEES.map((n,i) => { const hasPw = empNeedsPw(n); return `
         <div class="adm-row">
-          <div class="adm-main">${escapeHtml(n)}<div class="adm-sub">перемещений: ${usage[n] || 0} · ${hasPw ? '🔒 пароль задан' : 'без пароля'}</div></div>
+          <div class="adm-main">${escapeHtml(n)}<div class="adm-sub">перемещений: ${usage[n] || 0} · ${hasPw ? '🔒 пароль задан' : 'без пароля'}${empCanSelf(n) ? ' · ✋ выполняет сам' : ''}</div></div>
           <div class="adm-actions">
             <button type="button" class="btn btn-ghost btn-small" data-emp-pw="${i}">🔑 ${hasPw ? 'Сменить пароль' : 'Задать пароль'}</button>
             ${hasPw ? `<button type="button" class="btn btn-ghost btn-small" data-emp-pwclear="${i}">Снять</button>` : ''}
+            <button type="button" class="btn btn-ghost btn-small" data-emp-self="${i}" title="Сможет сам распечатать список из корзины и сразу отметить перенос выполненным">✋ Сам: ${empCanSelf(n) ? 'да' : 'нет'}</button>
             <button type="button" class="btn btn-ghost btn-small" data-emp-up="${i}" ${i === 0 ? 'disabled' : ''} aria-label="Выше">↑</button>
             <button type="button" class="btn btn-ghost btn-small" data-emp-down="${i}" ${i === EMPLOYEES.length-1 ? 'disabled' : ''} aria-label="Ниже">↓</button>
             <button type="button" class="btn btn-danger btn-small" data-emp-del="${i}">Удалить</button>
@@ -4254,6 +4430,7 @@ function renderAdminEmployees(body){
       const rr = await adminCall({ action: 'admin_set_employees', employees: list });
       EMPLOYEES = list;
       if(rr && Array.isArray(rr.empPw)) empPwSetNames_(rr.empPw);
+      if(rr && Array.isArray(rr.empSelf)) empSelfSetNames_(rr.empSelf);
       try { localStorage.setItem(EMPLOYEES_CACHE_KEY, JSON.stringify(EMPLOYEES)); } catch(e) {}
       renderEmployeeList(); renderHistoryEmployeeFilter(); renderAdmin();
       showToast(okMsg);
@@ -4284,6 +4461,17 @@ function renderAdminEmployees(body){
       renderAdminEmployees(body); renderEmployeeList();
       showToast(`Пароль у «${name}» снят`);
     }catch(err){ showToast(err.message || 'Не удалось снять пароль'); }
+  }));
+  body.querySelectorAll('[data-emp-self]').forEach(b => b.addEventListener('click', async () => {
+    const name = EMPLOYEES[+b.dataset.empSelf], on = !empCanSelf(name);
+    if(on && !confirm(`Разрешить «${name}» выполнять переносы самому? Его переносы из корзины будут сразу записываться выполненными, без кладовщика.`)) return;
+    b.disabled = true;
+    try{
+      const rr = await adminCall({ action: 'admin_emp_self_set', name, on });
+      empSelfSetNames_(rr.empSelf);
+      renderAdminEmployees(body);
+      showToast(on ? `«${name}» может выполнять переносы сам` : `Право «сам» у «${name}» снято`);
+    }catch(err){ b.disabled = false; showToast(err.message || 'Не удалось сохранить'); }
   }));
   body.querySelectorAll('[data-emp-del]').forEach(b => b.addEventListener('click', () => {
     const name = EMPLOYEES[+b.dataset.empDel];
@@ -4457,7 +4645,7 @@ async function exportHistoryXlsx_(){
     if(dur !== null) durs.push(dur);
     if(t.status === 'done') done++; else pend++;
     if(t.urgent) urg++;
-    const who = t.status !== 'done' ? '' : ((!t.completedBy || t.completedBy === '__app__') ? 'Сайт' : t.completedBy);
+    const who = t.status !== 'done' ? '' : whoOf_(t);
     t.articles.forEach(a => {
       qty += a.qty;
       rows.push([String(t.id), c, d, dur, t.status === 'done' ? 'Завершено' : 'В процессе', t.urgent ? 'да' : '', t.employee || '', t.sourceCell, t.destCell, String(a.article), names[a.article] || '', a.qty, who, src]);
@@ -4519,7 +4707,7 @@ function renderAdminTransfers(body){
             <span class="status-pill ${t.status === 'done' ? 'status-done' : 'status-pending'}">${t.status === 'done' ? 'Завершено' : 'В процессе'}</span>
             <b style="margin-left:6px;">${escapeHtml(t.sourceCell)} → ${escapeHtml(t.destCell)}</b>
             <div class="adm-sub">${t.articles.map(a => `<span class="sku">${escapeHtml(a.article)}</span><b class="qty-x">×${a.qty}</b>${nameOf(a.article) ? escapeHtml(nameOf(a.article).slice(0,40)) : ''}`).join('<br>')}</div>
-            <div class="adm-sub">${escapeHtml(t.employee || '—')} · создано ${fmtDate(t.createdAt)}${t.completedAt ? ' · завершено ' + fmtDate(t.completedAt) : ''}${t.completedBy && t.completedBy !== '__app__' ? ' · выполнил ' + escapeHtml(t.completedBy) : ''}</div>
+            <div class="adm-sub">${escapeHtml(t.employee || '—')} · создано ${fmtDate(t.createdAt)}${t.completedAt ? ' · завершено ' + fmtDate(t.completedAt) : ''}${t.status === 'done' ? ' · ' + (t.completedBy === '__self__' ? 'выполнил сам (на сайте)' : (t.completedBy && t.completedBy !== '__app__' ? 'выполнил ' + escapeHtml(t.completedBy) + ' (Telegram)' : 'выполнено на сайте')) : ''}</div>
           </div>
           <div class="adm-actions">
             ${t.status === 'pending'
@@ -5115,7 +5303,7 @@ function downloadReportXlsx(R){
 // ---------- АДМИНКА: АНАЛИТИКА ----------
 let anPeriod = '30', anFrom = '', anTo = '', anMetric = 'tr', anTables = {}, anLastW = 0;
 const AN_MONTHS = ['янв','фев','мар','апр','мая','июн','июл','авг','сен','окт','ноя','дек'];
-function anWho_(t){ return (!t.completedBy || t.completedBy === '__app__') ? 'Сайт' : t.completedBy; }
+function anWho_(t){ return whoOf_(t); }
 function anMedian_(arr){
   if(!arr.length) return null;
   const a = arr.slice().sort((x, y) => x - y), m = a.length >> 1;
@@ -5385,6 +5573,7 @@ function downloadAnalyticsXlsx(A){
 let auditItems = null, auditErr = '', auditFilter = 'all', auditTotal = 0, auditSeq = 0;
 const AUDIT_KINDS = {
   cancel:   ['Отменено на сайте', 'moves'],
+  self:     ['Выполнено сразу (по листу)', 'moves'],
   delete:   ['Удалено в админке', 'moves'],
   restore:  ['Восстановлено', 'moves'],
   reopen:   ['Возвращено в очередь', 'moves'],
@@ -6361,9 +6550,19 @@ function escapeHtml(s){
 }
 function escapeAttr(s){ return escapeHtml(s); }
 
+function whoOf_(t){
+  const w = t && t.completedBy;
+  if(w === '__self__') return t.employee ? 'Сам: ' + t.employee : 'Сам (на сайте)';
+  return (!w || w === '__app__') ? 'Сайт' : String(w);
+}
 function doneByHtml(t){
-  const w = t && t.status === 'done' && t.completedBy && t.completedBy !== '__app__' ? String(t.completedBy) : '';
-  return w ? `<div class="muted" style="font-size:12px;">Выполнил: <b>${escapeHtml(w)}</b> (Telegram)</div>` : '';
+  if(!t || t.status !== 'done') return '';
+  const w = t.completedBy;
+  const mk = txt => `<div class="muted" style="font-size:12px;">${txt}</div>`;
+  if(w === '__self__') return mk(`Выполнил сам: <b>${escapeHtml(t.employee || '—')}</b> (на сайте, по листу, без кладовщика)`);
+  if(w && w !== '__app__') return mk(`Выполнил: <b>${escapeHtml(String(w))}</b> (Telegram)`);
+  if(t.sourceCell === '—') return '';
+  return mk('Отмечено на сайте (не в Telegram)');
 }
 
 function render(){
@@ -7100,7 +7299,7 @@ function repBuild_(c){
   rows.forEach((r, i) => { r.n = i + 1; });
   return { trs, rows };
 }
-function repWho_(t){ return t.status !== 'done' ? '' : ((!t.completedBy || t.completedBy === '__app__') ? 'Сайт' : t.completedBy); }
+function repWho_(t){ return t.status !== 'done' ? '' : whoOf_(t); }
 function repVal_(col, r){
   const t = r.t;
   switch(col.id){
@@ -7347,6 +7546,141 @@ function repXlsx_(){
   showToast('Файл ' + name + ' сохранён в загрузки');
   fbOk();
 }
+
+// ---------- v40. Печать и Excel списка из корзины (для сотрудников с правом «выполняю сам») ----------
+const CP_KEY = 'wt_cartprint_cfg';
+const CP_COLS = [
+  { id: 'n',     t: '№',        w: 5 },
+  { id: 'src',   t: 'Откуда',   w: 15 },
+  { id: 'dst',   t: 'Куда',     w: 15 },
+  { id: 'art',   t: 'Артикул',  w: 13 },
+  { id: 'name',  t: 'Название', w: 46 },
+  { id: 'qty',   t: 'Кол-во',   w: 8, num: true },
+  { id: 'check', t: 'Отметка',  w: 9 }
+];
+const CP_BASE = { cols: ['n', 'src', 'art', 'name', 'qty', 'check'], sort: 'src', orient: 'portrait', font: 'normal', title: '', sign: true };
+let cpCfg = null, cpFor = null;
+function cpKey_(){ return CP_KEY + ':' + String(selectedEmployee || '').toLowerCase(); }
+function cpLoad_(){
+  const k = cpKey_();
+  if(cpCfg && cpFor === k) return cpCfg;
+  let a = null;
+  try { a = JSON.parse(localStorage.getItem(k) || 'null'); } catch(e) { a = null; }
+  cpCfg = Object.assign({}, CP_BASE, (a && typeof a === 'object') ? a : {});
+  if(!Array.isArray(cpCfg.cols)) cpCfg.cols = CP_BASE.cols.slice();
+  cpFor = k;
+  return cpCfg;
+}
+function cpSave_(){ try { localStorage.setItem(cpKey_(), JSON.stringify(cpCfg)); } catch(e) {} }
+function cpCols_(c){ return CP_COLS.filter(col => c.cols.indexOf(col.id) !== -1); }
+function cpTitle_(c){ return (c.title && c.title.trim()) || 'Список для переноса на витрину'; }
+function cpRows_(c){
+  const names = articleNames(), by = {};
+  displayCart.forEach(l => {
+    const k = l.cell + '\u0000' + l.code;
+    const o = by[k] = by[k] || { src: l.cell, art: l.code, name: l.name || names[l.code] || '', qty: 0, dst: DISPLAY_CELL };
+    o.qty += l.qty;
+  });
+  const rows = Object.values(by);
+  const cmp = {
+    src: (a, b) => repCmp_(a.src, b.src) || repCmp_(a.art, b.art),
+    art: (a, b) => repCmp_(a.art, b.art) || repCmp_(a.src, b.src),
+    name: (a, b) => repCmp_(a.name, b.name) || repCmp_(a.src, b.src)
+  }[c.sort] || null;
+  rows.sort(cmp || ((a, b) => repCmp_(a.src, b.src) || repCmp_(a.art, b.art)));
+  rows.forEach((r, i) => { r.n = i + 1; });
+  return rows;
+}
+function cpVal_(col, r){ return col.id === 'check' ? '' : (r[col.id] === undefined ? '' : r[col.id]); }
+function cpTot_(rows){ return { pos: rows.length, qty: rows.reduce((s, r) => s + r.qty, 0), cells: new Set(rows.map(r => r.src)).size }; }
+function cpReady_(){
+  if(!displayCart.length){ showToast('Корзина пуста'); return false; }
+  if(displayCart.some(l => !l.cell)){ showToast('Укажите ячейку у всех позиций, иначе в листе не будет, откуда брать'); return false; }
+  return true;
+}
+function cpPrintHtml_(c){
+  const rows = cpRows_(c), cols = cpCols_(c);
+  if(!rows.length || !cols.length) return null;
+  const tot = cpTot_(rows);
+  const td = (col, r) => col.id === 'check' ? '<td><span class="rep-tick"></span></td>'
+    : `<td class="${col.num ? 'num' : (['src', 'dst', 'art', 'n'].indexOf(col.id) !== -1 ? 'nw' : '')}">${escapeHtml(String(cpVal_(col, r)))}</td>`;
+  return `<div class="rep-print f-${c.font}"><h1>${escapeHtml(cpTitle_(c))}</h1>
+    <div class="rep-meta">Сформировано ${escapeHtml(repFmt_(new Date()))}${selectedEmployee ? ' · ' + escapeHtml(selectedEmployee) : ''}<br>Ячеек: ${tot.cells} · позиций: ${tot.pos} · штук: ${tot.qty}</div>
+    <table><thead><tr>${cols.map(col => `<th>${escapeHtml(col.t)}</th>`).join('')}</tr></thead><tbody>
+    ${rows.map(r => '<tr>' + cols.map(col => td(col, r)).join('') + '</tr>').join('')}</tbody></table>
+    ${c.sign ? '<div class="rep-sign"><span>Сотрудник:</span><span>Подпись:</span><span>Дата:</span></div>' : ''}</div>`;
+}
+function cpPrint_(){
+  if(!cpReady_()) return;
+  const c = cpLoad_();
+  const html = cpPrintHtml_(c);
+  if(!html){ showToast('Нечего печатать: не выбраны столбцы'); fbErr(); return; }
+  const pa = document.getElementById('printArea');
+  pa.innerHTML = html;
+  let st = document.getElementById('repPageStyle');
+  if(!st){ st = document.createElement('style'); st.id = 'repPageStyle'; document.head.appendChild(st); }
+  st.textContent = '@page{size:A4 ' + (c.orient === 'landscape' ? 'landscape' : 'portrait') + ';margin:10mm;}';
+  document.body.classList.add('printing-rep');
+  const done = () => { document.body.classList.remove('printing-rep'); pa.innerHTML = ''; window.removeEventListener('afterprint', done); };
+  window.addEventListener('afterprint', done);
+  setTimeout(() => { try { window.print(); } catch(e) { done(); showToast('На этом устройстве печать недоступна. Скачайте Excel.'); } }, 80);
+  setTimeout(done, 180000);
+}
+function cpXlsx_(){
+  if(!cpReady_()) return;
+  const c = cpLoad_(), rows = cpRows_(c), cols = cpCols_(c);
+  if(!rows.length || !cols.length){ showToast('Нечего выгружать: не выбраны столбцы'); fbErr(); return; }
+  const tot = cpTot_(rows);
+  const main = [cols.map(col => col.t)];
+  rows.forEach(r => main.push(cols.map(col => cpVal_(col, r))));
+  const sum = [[cpTitle_(c)], ['Сформировано: ' + repFmt_(new Date()) + (selectedEmployee ? ' · ' + selectedEmployee : '')], [], ['Ячеек', tot.cells], ['Позиций', tot.pos], ['Штук', tot.qty]];
+  const blob = xlsxBlob_([
+    { name: 'Список', rows: main, widths: cols.map(col => col.w), opts: { header: true, freeze: true, filter: true } },
+    { name: 'Итоги', rows: sum, widths: [34, 14], opts: { boldRows: [0] } }
+  ]);
+  const d = new Date();
+  const name = 'spisok_perenos_' + d.getFullYear() + '-' + repPad_(d.getMonth() + 1) + '-' + repPad_(d.getDate()) + '_' + repPad_(d.getHours()) + repPad_(d.getMinutes()) + '.xlsx';
+  const url = URL.createObjectURL(blob);
+  const a = document.createElement('a');
+  a.href = url; a.download = name; a.style.display = 'none';
+  document.body.appendChild(a); a.click();
+  setTimeout(() => { URL.revokeObjectURL(url); a.remove(); }, 15000);
+  showToast('Файл ' + name + ' сохранён в загрузки');
+  fbOk();
+}
+function cpWrite_(){
+  const c = cpLoad_(), $ = id => document.getElementById(id);
+  $('cpSort').value = c.sort; $('cpOrient').value = c.orient; $('cpFont').value = c.font; $('cpTitle').value = c.title || ''; $('cpSign').checked = !!c.sign;
+  $('cpCols').innerHTML = CP_COLS.map(col => `<label class="rep-chip ${c.cols.indexOf(col.id) !== -1 ? 'on' : ''}"><input type="checkbox" data-col="${col.id}" ${c.cols.indexOf(col.id) !== -1 ? 'checked' : ''}> ${escapeHtml(col.t)}</label>`).join('');
+}
+function cpRead_(){
+  const c = cpLoad_(), $ = id => document.getElementById(id);
+  c.sort = $('cpSort').value; c.orient = $('cpOrient').value; c.font = $('cpFont').value; c.title = $('cpTitle').value; c.sign = $('cpSign').checked;
+  c.cols = Array.from(document.querySelectorAll('#cpCols input[data-col]:checked')).map(i => i.dataset.col);
+  document.querySelectorAll('#cpCols .rep-chip').forEach(l => l.classList.toggle('on', l.querySelector('input').checked));
+}
+function cpRefresh_(){
+  const c = cpLoad_(), rows = cpRows_(c), cols = cpCols_(c), tot = cpTot_(rows);
+  document.getElementById('cpInfo').innerHTML = `<b>${escapeHtml(cpTitle_(c))}</b><br>Ячеек: <b>${tot.cells}</b> · позиций: <b>${tot.pos}</b> · штук: <b>${tot.qty}</b>`;
+  const prev = document.getElementById('cpPreview');
+  if(!cols.length){ prev.innerHTML = '<div class="empty-state">Отметьте хотя бы один столбец.</div>'; return; }
+  if(!rows.length){ prev.innerHTML = '<div class="empty-state">Корзина пуста.</div>'; return; }
+  prev.innerHTML = '<table><thead><tr>' + cols.map(col => `<th>${escapeHtml(col.t)}</th>`).join('') + '</tr></thead><tbody>' +
+    rows.slice(0, 8).map(r => '<tr>' + cols.map(col => `<td>${col.id === 'check' ? '☐' : escapeHtml(String(cpVal_(col, r)))}</td>`).join('') + '</tr>').join('') +
+    (rows.length > 8 ? `<tr><td colspan="${cols.length}" class="muted">… и ещё ${rows.length - 8}</td></tr>` : '') + '</tbody></table>';
+}
+function cpOpen_(){ cpWrite_(); cpRefresh_(); document.getElementById('cpOverlay').classList.add('show'); }
+(function wireCp(){
+  const ov = document.getElementById('cpOverlay');
+  document.getElementById('cpClose').addEventListener('click', () => ov.classList.remove('show'));
+  ov.addEventListener('click', e => { if(e.target === ov) ov.classList.remove('show'); });
+  const upd = () => { cpRead_(); cpSave_(); cpRefresh_(); };
+  ov.addEventListener('input', upd);
+  ov.addEventListener('change', upd);
+  document.getElementById('cpPrint').addEventListener('click', cpPrint_);
+  document.getElementById('cpXlsx').addEventListener('click', cpXlsx_);
+  document.addEventListener('keydown', e => { if(e.key === 'Escape') ov.classList.remove('show'); });
+})();
 
 </script>
 </body>
