@@ -1692,11 +1692,49 @@ function sheetMemFresh(name, force){
   const m = sheetMem[name], at = sheetAt(name);
   return !force && !!at && !!m && m.at === at && Date.now() - m.t < SC_TTL_MS;
 }
+const sheetSigs_ = {};
+const sheetPrefetch_ = {};
+const sheetBg_ = {};
+function sheetSig_(rows){
+  let h = 2166136261;
+  for(let i = 0; i < rows.length; i++){
+    const r = rows[i];
+    for(let j = 0; j < r.length; j++){
+      const s = String(r[j]);
+      h = Math.imul(h ^ s.length, 16777619);
+      for(let k = 0; k < s.length; k++) h = Math.imul(h ^ s.charCodeAt(k), 16777619);
+    }
+    h = Math.imul(h ^ 10, 16777619);
+  }
+  return rows.length + ':' + (h >>> 0);
+}
+function sheetBgRefresh_(name){
+  if(sheetBg_[name]) return;
+  sheetBg_[name] = true;
+  setTimeout(async () => {
+    try{
+      const r = await loadSheetRows(name, true);
+      if(r.cached) return;
+      sheetStore_(name, r);
+      const same = sheetSigs_[name] && sheetSigs_[name] === sheetSig_(r.rows);
+      sheetMem[name] = { at: r.at, t: r.t };
+      if(same) return;
+      sheetPrefetch_[name] = r;
+      await (name === 'ostatki' ? fetchOstatki(true) : fetchVitrina(true));
+    }catch(e){  }
+    finally { delete sheetPrefetch_[name]; sheetBg_[name] = false; }
+  }, 1500);
+}
 async function loadSheetRows(name, force){
   const at = sheetAt(name);
+  if(force && sheetPrefetch_[name]){ const p = sheetPrefetch_[name]; delete sheetPrefetch_[name]; return p; }
   if(!force && at){
     const c = await scGet(name);
-    if(c && c.at === at && Array.isArray(c.rows) && c.rows.length && Date.now() - (c.savedAt || 0) < SC_TTL_MS) return { rows: c.rows, at, cached: true, t: c.savedAt };
+    if(c && c.at === at && Array.isArray(c.rows) && c.rows.length){
+      if(Date.now() - (c.savedAt || 0) < SC_TTL_MS) return { rows: c.rows, at, cached: true, t: c.savedAt };
+      sheetSigs_[name] = sheetSig_(c.rows);
+      return { rows: c.rows, at, cached: true, expired: true, t: Date.now() };
+    }
   }
   let payload;
   try{
@@ -2950,6 +2988,7 @@ async function fetchOstatkiRun(force){
     ostatkiLoadError = null;
     sheetMem.ostatki = { at: r.at, t: r.t };
     sheetStore_('ostatki', r);
+    if(r.expired) sheetBgRefresh_('ostatki');
   } catch(e) {
     ostatkiLoadError = e.message || 'неизвестная ошибка';
     state.ostatki = state.ostatki || {};
@@ -3244,6 +3283,7 @@ async function fetchVitrinaRun(force){
     vitrinaLoaded = true;
     sheetMem.vitrina = { at: r.at, t: r.t };
     sheetStore_('vitrina', r);
+    if(r.expired) sheetBgRefresh_('vitrina');
     rebuildVitrinaItems();
   }catch(e){
     vitrinaLoadError = e.message || 'неизвестная ошибка';
