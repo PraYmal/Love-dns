@@ -1,6 +1,6 @@
 // Служебный файл страницы учёта перемещений. Хранит копию страницы, чтобы она открывалась без связи
 // (при наличии связи всегда берётся свежая версия), и копию сканера QR. Данные склада он не хранит и не трогает.
-const VER = 'wt-shell-v41';
+const VER = 'wt-shell-v42';
 const JSQR = 'https://cdn.jsdelivr.net/npm/jsqr@1.4.0/dist/jsQR.min.js';
 const PAGE_WAIT_MS = 4000;   // сеть не ответила за это время — открываем сохранённую копию (а свежая подгрузится в фоне)
 
@@ -21,7 +21,7 @@ self.addEventListener('install', e => {
 });
 
 self.addEventListener('activate', e => {
-  e.waitUntil(caches.keys().then(ks => Promise.all(ks.filter(k => k !== VER).map(k => caches.delete(k)))).then(() => self.clients.claim()));
+  e.waitUntil(caches.keys().then(ks => Promise.all(ks.filter(k => k.indexOf('wt-shell-') === 0 && k !== VER).map(k => caches.delete(k)))).then(() => self.clients.claim()));
 });
 
 self.addEventListener('fetch', e => {
@@ -38,7 +38,8 @@ async function page_(req) {
   const net = fetch(req).then(r => { if (r && r.ok && r.type === 'basic') cache.put(key, r.clone()); return r; });
   if (!cached) return net;
   const first = await Promise.race([net.catch(() => null), new Promise(res => setTimeout(() => res(null), PAGE_WAIT_MS))]);
-  return first || cached;
+  // v42: ответ сети с ошибкой (404/503 при деплое, страница входа Wi-Fi) не заменяет рабочую сохранённую копию; переход-перенаправление пропускаем как есть
+  return (first && (first.ok || first.type === 'opaqueredirect')) ? first : cached;
 }
 
 async function lib_(req) {

@@ -1873,7 +1873,7 @@ function fetchTimeout_(url, ms, init){
 function isNetErr_(e){
   if(!e || e.needPw) return false;
   const m = String((e && e.message) || e);
-  return e.name === 'AbortError' || e.name === 'TypeError' || /Failed to fetch|NetworkError|Load failed|network|timeout|POST failed: (0|5\d\d)|GET failed: (0|5\d\d)/i.test(m);
+  return e.name === 'AbortError' || e.name === 'TypeError' || /Failed to fetch|NetworkError|Load failed|network|timeout|POST failed: (0|5\d\d)|GET failed: (0|5\d\d)|Сервер занят|Слишком много запросов|Service invoked too many times|quota/i.test(m);
 }
 async function apiGet(){
   const res = await fetchTimeout_(APPS_SCRIPT_URL, 25000, { method: 'GET' });
@@ -2472,7 +2472,7 @@ document.addEventListener('scroll', () => { if(cellAc.el && cellAc.el.classList.
 // ---------- populate cells datalist ----------
 function initCellsList(){
   const dl = document.getElementById('cellsList');
-  dl.innerHTML = CELLS.map(c=>`<option value="${c}">`).join('');
+  dl.innerHTML = CELLS.map(c=>`<option value="${escapeAttr(c)}">`).join('');
 }
 
 // ---------- прогноз остатков: ostatki (1С) + наши завершённые переносы ----------
@@ -5718,7 +5718,7 @@ function rsCardHtml_(){
   } else {
     if(!rs.day || !L.days.some(d => d.day === rs.day)) rs.day = L.days[0].day;
     const cur = L.days.find(d => d.day === rs.day) || L.days[0];
-    const opts = L.days.map(d => `<option value="${d.day}" ${d.day === rs.day ? 'selected' : ''}>${rsDayLabel_(d.day)} · строк перемещений: ${d.transfers === null ? '—' : d.transfers}</option>`).join('');
+    const opts = L.days.map(d => `<option value="${escapeAttr(d.day)}" ${d.day === rs.day ? 'selected' : ''}>${rsDayLabel_(d.day)} · строк перемещений: ${d.transfers === null ? '—' : d.transfers}</option>`).join('');
     const canT = cur.transfers !== null, canE = cur.employees !== null;
     if(rs.what === 'transfers' && !canT) rs.what = 'employees';
     if(rs.what === 'employees' && !canE) rs.what = 'transfers';
@@ -6636,7 +6636,7 @@ function qrPicHtml(code){
   const svg = qrSvg(code);
   if(svg) return svg;
   const b64 = QR_MAP[code] || QR_MAP[cellCode(code)];
-  if(b64) return `<div class="qr-pic"><img src="data:image/png;base64,${b64}" alt="QR ${escapeAttr(code)}"></div>`;
+  if(b64 && /^[A-Za-z0-9+\/=\s]+$/.test(b64)) return `<div class="qr-pic"><img src="data:image/png;base64,${escapeAttr(String(b64).replace(/\s+/g, ''))}" alt="QR ${escapeAttr(code)}"></div>`;
   return '';
 }
 function downloadQrPng(code){
