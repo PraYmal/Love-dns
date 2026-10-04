@@ -1626,7 +1626,7 @@ function empTokenDrop_(name){ const o = empTokens_(); const k = Object.keys(o).f
 function empNeedsPw(name){ const l = String(name || '').trim().toLowerCase(); return !!l && EMP_PW_NAMES.some(n => String(n).toLowerCase() === l); }
 function empAuthOk(name){ return !empNeedsPw(name) || !!empTokenFor(name); }
 function empPwSetNames_(list){ if(!Array.isArray(list)) return; EMP_PW_NAMES = list.map(String); try { localStorage.setItem(EMP_PW_CACHE_KEY, JSON.stringify(EMP_PW_NAMES)); } catch(e) {} }
-const EMP_GATED_RE = /^(add|notify|place|request_stock)$/;
+const EMP_GATED_RE = /^(add|notify|add_many|notify_many|place|request_stock)$/;
 function empInject_(p){
   if(p && p.employee && !p.empToken && EMP_GATED_RE.test(String(p.action || ''))){ const t = empTokenFor(p.employee); if(t) p.empToken = t; }
   return p;
@@ -4024,6 +4024,7 @@ function renderCart(){
 }
 
 let lastTr_ = null;
+let BATCH_OFF = false;   // v38: старый сервер не знает пакетную отправку — дальше по одному
 function lastTrFor_(cell, lines){ return lastTr_ && lastTr_.sourceCell === cell ? lastTr_ : null; }
 async function sendCart(){
   if(displayCreating) return;
@@ -4047,7 +4048,58 @@ async function sendCart(){
   const groups = {};
   displayCart.forEach(l => { (groups[l.cell] = groups[l.cell] || []).push(l); });
   let sent = 0, failed = 0, queued = 0, needPwHit = false;
-  for(const cell of Object.keys(groups)){
+  // v38: несколько ячеек отправляются ОДНИМ запросом (раньше — по запросу на ячейку, подряд, каждый ждал ответа Google),
+  // а уведомления в Telegram уходят одним пакетом по порядку
+  const cellList = Object.keys(groups);
+  let batchDone = false;
+  if(cellList.length >= 2 && !BATCH_OFF){
+    const pack = cellList.map(cell => {
+      const lines = groups[cell], byCode = {};
+      lines.forEach(l => { byCode[l.code] = (byCode[l.code] || 0) + l.qty; });
+      const tr = {
+        id: 'tr_' + Date.now() + '_' + Math.random().toString(36).slice(2,7),
+        createdAt: new Date().toISOString(),
+        sourceCell: cell,
+        destCell: DISPLAY_CELL,
+        articles: Object.entries(byCode).map(([article, qty]) => ({ article, qty })),
+        employee: selectedEmployee
+      };
+      if(document.getElementById('cartUrgent').checked) tr.urgent = true;
+      return { cell, lines, tr };
+    });
+    const dropLines = lines => { const ids = new Set(lines.map(l => l.id)); displayCart = displayCart.filter(l => !ids.has(l.id)); };
+    pack.forEach(p => localIds.add(p.tr.id));
+    let resp = null, bErr = null;
+    opsInFlight++;
+    try{ resp = await apiPostStrict({ action: 'add_many', employee: selectedEmployee, items: pack.map(p => p.tr) }, { timeout: 30000 }); }
+    catch(e){ bErr = e; }
+    finally { opsInFlight--; }
+    if(!bErr && !(resp && resp.results && typeof resp.results === 'object')) bErr = new Error('Unknown action: add_many (ответ без results)');   // сервер без пакетной отправки: ничего не записано, идём по одному
+    if(bErr && /Unknown action/i.test(String(bErr.message || ''))){ BATCH_OFF = true; }
+    else {
+      batchDone = true;
+      if(bErr && bErr.needPw){ needPwHit = true; failed += pack.length; }                 // корзина остаётся
+      else if(bErr){
+        // не дошло: каждое перемещение (со своим номером) уходит в очередь и отправится, когда появится связь; сервер повтор не задвоит
+        pack.forEach(p => { outboxAdd(p.tr); queued++; dropLines(p.lines); });
+        fireAndForget({ action: 'tg_sync', items: [] });
+        saveCart();
+      } else {
+        const fresh = [];
+        pack.forEach(p => {
+          const st = resp && resp.results && resp.results[p.tr.id];
+          if(st === 'ok' || st === 'dup'){
+            sent++; dropLines(p.lines);
+            state.transfers.unshift({ id: p.tr.id, createdAt: p.tr.createdAt, sourceCell: p.cell, destCell: DISPLAY_CELL, status: 'pending', completedAt: null, completedBy: '', employee: selectedEmployee, deferredAt: 0, urgent: !!p.tr.urgent, articles: p.tr.articles.map(a => ({ article: a.article, qty: a.qty })) });
+            if(st === 'ok') fresh.push(p.tr);
+          } else failed++;
+        });
+        saveCart();
+        if(fresh.length) fireAndForget({ action: 'notify_many', employee: selectedEmployee, items: fresh });
+      }
+    }
+  }
+  for(const cell of (batchDone ? [] : cellList)){
     const lines = groups[cell];
     // одинаковые артикулы в одной ячейке сливаем в одну строку
     const byCode = {};
@@ -6329,6 +6381,11 @@ async function renderAdminTelegram(body){
           ${rem.enabled ? '<button type="button" class="btn btn-ghost btn-small" id="tgRemOff">Выключить</button>' : ''}
         </div></div>
     </div>
+    <div class="card" id="tgSummaryHint">
+      <h2>Вечерняя сводка</h2>
+      <div class="adm-sub" style="line-height:1.55;margin:-4px 0 10px;">Итоги дня приходят в Telegram тем, у кого отмечено «Служебные». Включается и настраивается в разделе «Система» (по умолчанию выключена).</div>
+      <div class="adm-actions"><button type="button" class="btn btn-ghost btn-small" id="tgGoSummary">Открыть настройки сводки</button></div>
+    </div>
     <div class="card" id="tgQuietCard">
       <h2>Тихий режим</h2>
       <div class="adm-sub" style="line-height:1.55;margin:-4px 0 10px;">
@@ -6427,6 +6484,7 @@ async function renderAdminTelegram(body){
     el.textContent = (q.activeNow ? '🔕 Сейчас тихий режим действует' : '🔔 Сейчас звук включён') + ' · с ' + q.from + ' до ' + q.to + ' (Ташкент)';
   };
   quietStatus();
+  { const gs = document.getElementById('tgGoSummary'); if(gs) gs.addEventListener('click', () => { adminSection = 'system'; renderAdmin(); }); }
   document.getElementById('tgQuietSave').addEventListener('click', async ev => {
     const btn = ev.currentTarget;
     const on = document.getElementById('tgQuietOn').checked;
