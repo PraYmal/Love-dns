@@ -702,7 +702,9 @@
   #printArea{display:none;}
   @media print{
     body.printing-rep > *:not(#printArea){display:none !important;}
-    body.printing-rep{background:#fff !important;color:#000 !important;}
+    body.printing-rep{background:#fff !important;color:#000 !important;padding:0 !important;margin:0 !important;}
+    #printArea tbody.rep-tail,#printArea .rep-keep{break-inside:avoid;page-break-inside:avoid;}
+    #printArea td.rep-signcell{border:0 !important;padding:22px 0 0 !important;}
     body.printing-rep #printArea{display:block !important;color:#000;background:#fff;font-family:Arial,Helvetica,sans-serif;}
     #printArea .rep-print{font-size:10.5pt;}
     #printArea .rep-print.f-small{font-size:8.5pt;}
@@ -7408,16 +7410,21 @@ function repPrintHtml_(c){
     if(v instanceof Date) return `<td class="nw">${escapeHtml(repFmt_(v))}</td>`;
     return `<td class="${col.num ? 'num' : (['src', 'dst', 'art', 'status', 'urgent', 'n'].indexOf(col.id) !== -1 ? 'nw' : '')}">${escapeHtml(String(v)).replace(/\n/g, '<br>')}</td>`;
   };
+  const tr = r => '<tr>' + cols.map(col => td(col, r)).join('') + '</tr>';
+  const signDiv = '<div class="rep-sign"><span>Выдал:</span><span>Принял:</span><span>Дата:</span></div>';
+  const glue = !!c.sign && !c.byEmp;
+  const K = glue ? Math.min(3, b.rows.length) : 0;
+  const head = b.rows.slice(0, b.rows.length - K), tail = b.rows.slice(b.rows.length - K);
+  const signRow = glue ? `<tr><td class="rep-signcell" colspan="${cols.length}"><div class="rep-sign" style="margin-top:0;"><span>Выдал:</span><span>Принял:</span><span>Дата:</span></div></td></tr>` : '';
   let html = `<div class="rep-print f-${c.font}"><h1>${escapeHtml(repTitle_(c))}</h1>
     <div class="rep-meta">Сформировано ${escapeHtml(repFmt_(new Date()))}${typeof selectedEmployee !== 'undefined' && selectedEmployee ? ' · ' + escapeHtml(selectedEmployee) : ''}<br>${escapeHtml(repDescr_(c))}<br>Переносов: ${tot.tr} · позиций: ${tot.pos} · штук: ${tot.qty}</div>
-    <table><thead><tr>${cols.map(col => `<th>${escapeHtml(col.t)}</th>`).join('')}</tr></thead><tbody>
-    ${b.rows.map(r => '<tr>' + cols.map(col => td(col, r)).join('') + '</tr>').join('')}</tbody></table>`;
+    <table><thead><tr>${cols.map(col => `<th>${escapeHtml(col.t)}</th>`).join('')}</tr></thead>
+    <tbody>${head.map(tr).join('')}</tbody>${glue ? `<tbody class="rep-tail">${tail.map(tr).join('')}${signRow}</tbody>` : ''}</table>`;
   if(c.byEmp){
     const be = repByEmp_(b);
-    html += `<h2>Итоги по сотрудникам</h2><table><thead><tr><th>Сотрудник</th><th>Переносов</th><th>Позиций</th><th>Штук</th></tr></thead><tbody>` +
-      be.map(e => `<tr><td>${escapeHtml(e.emp)}</td><td class="num">${e.tr}</td><td class="num">${e.pos}</td><td class="num">${e.qty}</td></tr>`).join('') + '</tbody></table>';
+    html += `<div class="rep-keep"><h2>Итоги по сотрудникам</h2><table><thead><tr><th>Сотрудник</th><th>Переносов</th><th>Позиций</th><th>Штук</th></tr></thead><tbody>` +
+      be.map(e => `<tr><td>${escapeHtml(e.emp)}</td><td class="num">${e.tr}</td><td class="num">${e.pos}</td><td class="num">${e.qty}</td></tr>`).join('') + '</tbody></table>' + (c.sign ? signDiv : '') + '</div>';
   }
-  if(c.sign) html += '<div class="rep-sign"><span>Выдал:</span><span>Принял:</span><span>Дата:</span></div>';
   return html + '</div>';
 }
 function repPrepare_(){
@@ -7604,11 +7611,14 @@ function cpPrintHtml_(c){
   const tot = cpTot_(rows);
   const td = (col, r) => col.id === 'check' ? '<td><span class="rep-tick"></span></td>'
     : `<td class="${col.num ? 'num' : (['src', 'dst', 'art', 'n'].indexOf(col.id) !== -1 ? 'nw' : '')}">${escapeHtml(String(cpVal_(col, r)))}</td>`;
+  const tr = r => '<tr>' + cols.map(col => td(col, r)).join('') + '</tr>';
+  const K = c.sign ? Math.min(3, rows.length) : 0;
+  const head = rows.slice(0, rows.length - K), tail = rows.slice(rows.length - K);
+  const sign = c.sign ? `<tr><td class="rep-signcell" colspan="${cols.length}"><div class="rep-sign" style="margin-top:0;"><span>Сотрудник:</span><span>Подпись:</span><span>Дата:</span></div></td></tr>` : '';
   return `<div class="rep-print f-${c.font}"><h1>${escapeHtml(cpTitle_(c))}</h1>
     <div class="rep-meta">Сформировано ${escapeHtml(repFmt_(new Date()))}${selectedEmployee ? ' · ' + escapeHtml(selectedEmployee) : ''}<br>Ячеек: ${tot.cells} · позиций: ${tot.pos} · штук: ${tot.qty}</div>
-    <table><thead><tr>${cols.map(col => `<th>${escapeHtml(col.t)}</th>`).join('')}</tr></thead><tbody>
-    ${rows.map(r => '<tr>' + cols.map(col => td(col, r)).join('') + '</tr>').join('')}</tbody></table>
-    ${c.sign ? '<div class="rep-sign"><span>Сотрудник:</span><span>Подпись:</span><span>Дата:</span></div>' : ''}</div>`;
+    <table><thead><tr>${cols.map(col => `<th>${escapeHtml(col.t)}</th>`).join('')}</tr></thead>
+    <tbody>${head.map(tr).join('')}</tbody><tbody class="rep-tail">${tail.map(tr).join('')}${sign}</tbody></table></div>`;
 }
 function cpPrint_(){
   if(!cpReady_()) return;
