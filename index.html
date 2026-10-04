@@ -5960,6 +5960,7 @@ async function renderAdminTelegram(body){
   const msgHintHtml = '<div class="adm-sub" style="margin:8px 0;">✏️ Тексты сообщений бота и подпись со ссылкой меняются в разделе «Сообщения».</div>';
   const siteVal = (s && s.siteUrl) || tgSiteDefault();
   const rem = (s && s.reminders) || { enabled: false, hours: 0 };
+  const qz = Object.assign({ on: false, from: '22:00', to: '07:00', activeNow: false }, (s && s.quiet) || {});
   body.innerHTML = `
     <div class="card">
       <h2>Telegram: бот для кладовщиков</h2>
@@ -5996,6 +5997,21 @@ async function renderAdminTelegram(body){
           <button type="button" class="btn btn-primary btn-small" id="tgRemOn">${rem.enabled ? 'Сохранить' : 'Включить'}</button>
           ${rem.enabled ? '<button type="button" class="btn btn-ghost btn-small" id="tgRemOff">Выключить</button>' : ''}
         </div></div>
+    </div>
+    <div class="card" id="tgQuietCard">
+      <h2>Тихий режим</h2>
+      <div class="adm-sub" style="line-height:1.55;margin:-4px 0 10px;">
+        В указанные часы все сообщения бота приходят <b>без звука и вибрации</b> (уведомление остаётся в чате, просто не будит). Время — по Ташкенту, интервал может переходить через полночь (например, 22:00 → 07:00). Сигнал «🔔 Новое перемещение» в это время тоже не отправляется — табло обновляется молча. Личные настройки звука в самом Telegram у каждого получателя при этом никуда не деваются. На оповещения внутри сайта режим не влияет.
+      </div>
+      <div class="adm-row"><div class="adm-main">Состояние<div class="adm-sub" id="tgQuietStatus"></div></div></div>
+      <div class="adm-fchecks" style="margin-top:8px;">
+        <label><input type="checkbox" id="tgQuietOn" ${qz.on ? 'checked' : ''}> Включить тихий режим</label>
+      </div>
+      <div class="adm-actions" style="margin-top:8px;flex-wrap:wrap;gap:8px;align-items:center;">
+        <label class="muted" style="display:flex;gap:6px;align-items:center;">с <input type="time" id="tgQuietFrom" value="${escapeAttr(qz.from)}" step="60" required></label>
+        <label class="muted" style="display:flex;gap:6px;align-items:center;">до <input type="time" id="tgQuietTo" value="${escapeAttr(qz.to)}" step="60" required></label>
+        <button type="button" class="btn btn-primary btn-small" id="tgQuietSave">Сохранить</button>
+      </div>
     </div>
     <div class="card">
       <h2>Закреплённая задача «Сейчас»</h2>
@@ -6071,6 +6087,28 @@ async function renderAdminTelegram(body){
       const r = await adminCall({ action: 'admin_telegram_speed' });
       out.innerHTML = (r.timings || []).map(x => `${escapeHtml(x.name)}: <b>${Number(x.ms)} мс</b>${x.note ? ' · ' + escapeHtml(x.note) : ''}`).join('<br>');
     }catch(e){ out.textContent = e.message || 'Не удалось замерить'; }
+    btn.disabled = false;
+  });
+  const quietStatus = () => {
+    const el = document.getElementById('tgQuietStatus'); if(!el) return;
+    const q = tgState && tgState.quiet;
+    if(!q || !q.on){ el.textContent = 'Выключен — сообщения приходят со звуком.'; return; }
+    el.textContent = (q.activeNow ? '🔕 Сейчас тихий режим действует' : '🔔 Сейчас звук включён') + ' · с ' + q.from + ' до ' + q.to + ' (Ташкент)';
+  };
+  quietStatus();
+  document.getElementById('tgQuietSave').addEventListener('click', async ev => {
+    const btn = ev.currentTarget;
+    const on = document.getElementById('tgQuietOn').checked;
+    const from = document.getElementById('tgQuietFrom').value, to = document.getElementById('tgQuietTo').value;
+    if(!/^\d{2}:\d{2}$/.test(from) || !/^\d{2}:\d{2}$/.test(to)){ showToast('Укажите время «с» и «до»'); return; }
+    if(on && from === to){ showToast('Время «с» и «до» не должно совпадать'); return; }
+    btn.disabled = true;
+    try{
+      const r = await adminCall({ action: 'admin_telegram_quiet', on, from, to });
+      if(tgState) tgState.quiet = r;
+      showToast(r && r.on ? 'Тихий режим включён: ' + r.from + '–' + r.to : 'Тихий режим выключен');
+      quietStatus();
+    }catch(e){ showToast(e.message || 'Не удалось сохранить'); }
     btn.disabled = false;
   });
   const bOn = document.getElementById('tgBoardOn'); if(bOn) bOn.addEventListener('click', () => boardCall(true));
