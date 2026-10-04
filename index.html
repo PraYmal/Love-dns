@@ -5631,6 +5631,29 @@ function drawSystem(body){
   const trigWarn = tr.error ? `<div class="adm-sub" style="color:var(--red);margin-bottom:8px;">${escapeHtml(tr.error)}</div>` : '';
   const hint = (txt) => `<div class="adm-sub" style="line-height:1.55;margin:-4px 0 10px;">${txt}</div>`;
 
+  // --- сторож Telegram ---
+  const gd = S.guard || null;
+  const gdProblems = (gd && Array.isArray(gd.problems)) ? gd.problems : [];
+  let gdLine = 'ещё не запускался';
+  if(gd && gd.skipped) gdLine = escapeHtml(gd.skipped);
+  else if(gd && gd.at){
+    gdLine = (gdProblems.length ? '<span style="color:var(--red);">есть проблемы</span>' : '<span style="color:var(--green);">всё в порядке</span>')
+      + ' · проверено ' + escapeHtml(sysAt_(gd.at)) + (gd.manual ? ' (вручную)' : '')
+      + (gd.probeAt ? ' · путь через Worker проверен ' + escapeHtml(sysAt_(new Date(gd.probeAt).toISOString())) + (gd.probeLag ? ' (' + (Math.round(gd.probeLag / 100) / 10) + ' с)' : '') : '');
+  }
+  const gdList = gdProblems.map(x => `<div class="adm-sub" style="${x.level === 'fail' ? 'color:var(--red);' : ''}">${x.level === 'fail' ? '🔴' : '🟡'} ${escapeHtml(x.text)}</div>`).join('');
+  const gdAlertErr = gd && gd.alertErr ? `<div class="adm-sub" style="color:var(--red);">Сообщение о проблеме отправить не удалось: ${escapeHtml(gd.alertErr)}</div>` : '';
+  const gdCard = `<div class="card" id="sysGuardCard">
+      <h2>Сторож Telegram</h2>
+      ${hint('Раз в 30 минут бот спрашивает у Telegram, нет ли ошибок доставки и очереди, и смотрит, не провалилась ли последняя отправка уведомления. Днём примерно раз в 2 часа проверяет весь путь Telegram → Worker → скрипт пробным запросом (около 8 запросов в сутки через Worker). Если что-то не так, получатели со «Служебными сообщениями» получат одно сообщение; когда всё наладится, придёт ещё одно. Если сам Telegram недоступен, сообщение не дойдёт, но проблема будет видна здесь. На скорость уведомлений сторож не влияет.')}
+      ${trigWarn}
+      <div class="adm-row"><div class="adm-main">Сторож ${sysOnOff_(c.guard_on)}<div class="adm-sub">${c.guard_on ? (tr.guard ? 'расписание создано, каждые 30 минут' : '<span style="color:var(--red);">расписание не создано — нажмите «Включить» ещё раз</span>') : 'не работает'}</div><div class="adm-sub">${gdLine}</div>${gdList}${gdAlertErr}</div>
+        <div class="adm-actions" style="flex-wrap:wrap;gap:6px;align-items:center;">
+          <button type="button" class="btn btn-primary btn-small" id="sysGdToggle">${c.guard_on ? 'Выключить' : 'Включить'}</button>
+          <button type="button" class="btn btn-ghost btn-small" id="sysGdNow">Проверить сейчас</button>
+        </div></div>
+    </div>`;
+
   // --- вечерняя сводка ---
   const evLast = S.evening && S.evening.last ? S.evening.last : '';
   const evCard = `<div class="card">
@@ -5752,10 +5775,17 @@ function drawSystem(body){
       </div>
     </div>`;
 
-  body.innerHTML = (sysErrMsg ? `<div class="card"><div class="adm-sub" style="color:var(--red);">Не удалось обновить: ${escapeHtml(sysErrMsg)}. Показаны прежние данные.</div></div>` : '') + evCard + bkCard + rsCardHtml_() + arCard + qCard + wCard + mCard;
+  body.innerHTML = (sysErrMsg ? `<div class="card"><div class="adm-sub" style="color:var(--red);">Не удалось обновить: ${escapeHtml(sysErrMsg)}. Показаны прежние данные.</div></div>` : '') + gdCard + evCard + bkCard + rsCardHtml_() + arCard + qCard + wCard + mCard;
 
   const busy = (btn, on) => { if(btn) btn.disabled = on; };
   const $ = id => document.getElementById(id);
+  $('sysGdToggle').addEventListener('click', () => sysCfgSave_({ guard_on: !c.guard_on }, c.guard_on ? 'Сторож выключен' : 'Сторож включён', body));
+  $('sysGdNow').addEventListener('click', async e => {
+    const btn = e.currentTarget; busy(btn, true); btn.textContent = 'Проверяю…';
+    try { sysSt = await adminCall({ action: 'admin_guard_now' }); showToast(sysSt.guard && sysSt.guard.problems && sysSt.guard.problems.length ? 'Найдены проблемы: ' + sysSt.guard.problems.length : 'Проблем не найдено'); }
+    catch(err) { showToast(err.message || 'Не удалось проверить'); }
+    if(adminSection === 'system') drawSystem(body);
+  });
   $('sysEvSave').addEventListener('click', () => sysCfgSave_({ evening_on: true, evening_hour: Number($('sysEvHour').value) }, 'Сводка включена', body));
   const evOff = $('sysEvOff'); if(evOff) evOff.addEventListener('click', () => sysCfgSave_({ evening_on: false }, 'Сводка выключена', body));
   $('sysEvNow').addEventListener('click', async e => {
