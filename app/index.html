@@ -358,6 +358,23 @@
   .disp-claim{margin-top:8px;padding:8px 10px;border-radius:10px;background:var(--orange-dim);color:var(--orange-soft);font-size:13px;line-height:1.45;}
   .disp-queued{display:inline-block;margin-left:8px;padding:2px 8px;border-radius:12px;font-size:11.5px;font-weight:700;background:var(--orange-dim);color:var(--orange-soft);}
   .disp-cells{display:flex;flex-wrap:wrap;gap:6px;margin-top:10px;}
+
+  .loc-toggle{display:flex;align-items:center;gap:10px;margin:2px 0 12px;padding:11px 12px;background:var(--charcoal-800);border:1px solid var(--line);border-radius:10px;font-weight:600;cursor:pointer;}
+  .loc-toggle input{width:18px;height:18px;flex:none;}
+  .loc-toggle small{font-weight:400;color:var(--text-dim);font-size:12.5px;}
+  #tab-display.locate-on .loc-toggle{border-color:var(--orange);background:var(--orange-dim);}
+  #tab-display.locate-on .loc-hide{display:none !important;}
+  .loc-only{display:none;}
+  #tab-display.locate-on .loc-only{display:flex;}
+  .loc-sum{margin:0 0 10px;font-size:12.5px;line-height:1.5;color:var(--text-dim);}
+  .loc-sum b{color:var(--text);}
+  .loc-chip{display:inline-flex;align-items:baseline;gap:5px;flex-wrap:wrap;background:var(--charcoal-700);border:1px solid var(--charcoal-600);color:var(--text);padding:7px 11px;border-radius:8px;cursor:pointer;font-family:ui-monospace,Menlo,monospace;font-size:12.5px;text-align:left;}
+  .loc-chip b{color:var(--green);}
+  .loc-chip:hover{border-color:var(--orange);}
+  .loc-chip.loc-disp{border-color:var(--orange);background:var(--orange-dim);color:var(--orange-soft);}
+  .loc-chip.loc-hit{box-shadow:0 0 0 2px var(--orange);}
+  .loc-chip i{font-style:normal;font-family:inherit;font-size:11px;color:var(--text-dim);}
+  .loc-chip.loc-disp i{color:var(--orange-soft);}
   .disp-cell-btn{
     background:var(--charcoal-700);border:1px solid var(--charcoal-600);color:var(--text);
     padding:7px 11px;border-radius:8px;cursor:pointer;font-family:ui-monospace,Menlo,monospace;font-size:12.5px;
@@ -872,12 +889,13 @@
   <div class="panel active" id="tab-display">
     <div class="card">
       <h2>Что выставить <span>товары, которых нет на витрине, и ячейки, где они лежат</span></h2>
-      <details class="help"><summary>Как это работает</summary><p>Список берётся из листа «vitrina» (выгрузка «Выставление товара на витрину» из 1С), ячейки — из листа «ostatki» с учётом наших переносов.
+      <label class="loc-toggle"><input type="checkbox" id="displayLocate"><span>📍 Где что лежит <small>— только посмотреть по учёту, без выставления</small></span></label>
+      <details class="help loc-hide"><summary>Как это работает</summary><p>Список берётся из листа «vitrina» (выгрузка «Выставление товара на витрину» из 1С), ячейки — из листа «ostatki» с учётом наших переносов.
         Нажмите на ячейку у товара, укажите количество — создастся обычное перемещение «ячейка → Витрина», кладовщик увидит его во вкладке «Задачи».</p></details>
-      <label class="muted" style="display:block;margin:10px 0 6px;">Сотрудник</label>
-      <div class="employee-list" id="displayEmployeeList"></div>
+      <label class="muted loc-hide" style="display:block;margin:10px 0 6px;">Сотрудник</label>
+      <div class="employee-list loc-hide" id="displayEmployeeList"></div>
       <div id="dataWarn"></div>
-      <details class="dash" id="dashBox" open><summary id="dashHead"><span class="dash-txt">Сводка загружается…</span></summary><div id="displaySummary"></div></details>
+      <details class="dash loc-hide" id="dashBox" open><summary id="dashHead"><span class="dash-txt">Сводка загружается…</span></summary><div id="displaySummary"></div></details>
     </div>
 
     <div class="card">
@@ -885,7 +903,15 @@
         <input type="text" id="displaySearch" placeholder="Поиск по названию или коду товара...">
       </div>
       <div class="employee-list" id="displayCategoryFilter" style="margin-bottom:10px;"></div>
-      <details class="filters" id="filtBox"><summary>Настройки списка <span class="badge" id="filtBadge" style="display:none;"></span></summary><div class="filt-grid">
+      <div class="loc-only" style="gap:8px;align-items:center;margin-bottom:8px;">
+        <label class="muted" for="locSort" style="white-space:nowrap;">Сортировка</label>
+        <select class="adm-select" id="locSort">
+          <option value="cat">По категориям</option>
+          <option value="name">По названию</option>
+          <option value="qty">Больше всего на складе — сначала</option>
+        </select>
+      </div>
+      <details class="filters loc-hide" id="filtBox"><summary>Настройки списка <span class="badge" id="filtBadge" style="display:none;"></span></summary><div class="filt-grid">
       <div style="display:flex;gap:8px;align-items:center;margin-bottom:8px;">
         <label class="muted" for="displaySort" style="white-space:nowrap;">Сортировка</label>
         <select class="adm-select" id="displaySort">
@@ -3288,6 +3314,9 @@ let vitrinaLoadError = null;
 let vitrinaLoaded = false;
 let displayLimit = 50;
 let displayCategory = '';
+const LOC_KEY = 'wt_display_locate';
+let displayLocate = false, lastLocSig = '';
+try { displayLocate = localStorage.getItem(LOC_KEY) === '1'; } catch(e) {}
 let displayCreating = false;
 
 // ---------- КОРЗИНА выставления ----------
@@ -3682,9 +3711,107 @@ function wireBlockedNote_(wrap){
     if(el){ el.checked = true; el.dispatchEvent(new Event('change', { bubbles: true })); }
   });
 }
+
+// ---------- режим «Где что лежит»: что и в каких ячейках числится (выгрузка 1С + завершённые после неё переносы) ----------
+function locateIndex_(){
+  const proj = computeProjectedInventory();
+  const meta = {};
+  vitrinaItems.forEach(v => { meta[normCode(v.code)] = v; });
+  const pendOut = {};
+  (state.transfers || []).forEach(t => {
+    if(t.status !== 'pending' || !t.sourceCell || t.sourceCell === '—') return;
+    t.articles.forEach(a => { const k = normCode(a.article) + '|' + t.sourceCell; pendOut[k] = (pendOut[k] || 0) + a.qty; });
+  });
+  const by = {};
+  Object.keys(proj).forEach(cell => Object.keys(proj[cell]).forEach(art => {
+    const e = proj[cell][art];
+    if(!(e.qty > 0)) return;
+    const k = normCode(art), m = meta[k];
+    const o = by[k] = by[k] || { code: art, name: '', cat: '', cells: [], total: 0 };
+    if(m){ o.name = m.name || o.name; o.cat = m.cat1 || o.cat; }
+    if(!o.name || o.name === art) o.name = (e.name && e.name !== art) ? e.name : (o.name || art);
+    const other = Object.keys(e.others || {}).filter(st => e.others[st] > 0).map(st => st + ' ' + e.others[st]).join(', ');
+    o.cells.push({ cell, qty: e.qty, other, pend: pendOut[k + '|' + cell] || 0, disp: isDisplayDest(cell), blocked: isBlockedRuleCell(cell) });
+    o.total += e.qty;
+  }));
+  return Object.keys(by).map(k => by[k]);
+}
+function renderLocate(wrap){
+  const dw = document.getElementById('dataWarn');
+  if(dw) dw.innerHTML = dataWarnHtml();
+  const catWrap = document.getElementById('displayCategoryFilter');
+  if(ostatkiLoadError){
+    if(catWrap) catWrap.innerHTML = '';
+    wrap.innerHTML = `<div class="empty-state">Не удалось загрузить лист «ostatki»: ${escapeHtml(ostatkiLoadError)}.<br>Загрузите выгрузку в админке (раздел «Данные») или проверьте связь.</div>`;
+    return;
+  }
+  if(!state.ostatki){
+    wrap.innerHTML = '<div class="skel"></div><div class="skel"></div><div class="skel"></div>';
+    return;
+  }
+  const universe = locateIndex_();
+  const q = (document.getElementById('displaySearch').value || '').toLowerCase().trim();
+  const sort = document.getElementById('locSort').value;
+  const catCount = {};
+  universe.forEach(it => { const c = it.cat || 'Без категории'; catCount[c] = (catCount[c] || 0) + 1; });
+  const cats = Object.keys(catCount).sort();
+  if(displayCategory && !catCount[displayCategory]) displayCategory = '';
+  catWrap.innerHTML = ['Все', ...cats].map(c => {
+    const v = c === 'Все' ? '' : c;
+    return `<button type="button" class="employee-btn ${displayCategory === v ? 'selected' : ''}" data-disp-cat="${escapeAttr(v)}">${escapeHtml(c)}${c === 'Все' ? '' : ' <small>' + catCount[c] + '</small>'}</button>`;
+  }).join('');
+
+  let items = universe;
+  if(displayCategory) items = items.filter(it => (it.cat || 'Без категории') === displayCategory);
+  if(q) items = items.filter(it => String(it.code).toLowerCase().includes(q) || String(it.name).toLowerCase().includes(q) || it.cells.some(c => c.cell.toLowerCase().includes(q)));
+  items.forEach(it => it.cells.sort((a, b) => (b.disp - a.disp) || (b.qty - a.qty) || a.cell.localeCompare(b.cell)));
+  if(sort === 'qty') items.sort((a, b) => b.total - a.total || a.name.localeCompare(b.name));
+  else if(sort === 'name') items.sort((a, b) => a.name.localeCompare(b.name));
+  else items.sort((a, b) => (a.cat || 'я').localeCompare(b.cat || 'я') || a.name.localeCompare(b.name));
+
+  const ostAt = uploadedAtMs('ostatki');
+  const cellSet = new Set(); items.forEach(it => it.cells.forEach(c => cellSet.add(c.cell)));
+  const head = `<div class="loc-sum">Найдено: <b>${items.length}</b> ${plural_(items.length, 'товар', 'товара', 'товаров')} в <b>${cellSet.size}</b> ${plural_(cellSet.size, 'ячейке', 'ячейках', 'ячейках')}. ` +
+    `Это то, что числится по учёту: выгрузка 1С${ostAt !== null ? ' от ' + fmtStamp(new Date(ostAt)) : ''} и переносы, завершённые после неё. Если товар перекладывали мимо этой страницы, здесь этого не видно. Нажмите на ячейку, чтобы увидеть её QR и историю.</div>`;
+  if(!items.length){
+    wrap.innerHTML = head + `<div class="empty-state">${universe.length ? 'Ничего не найдено. Измените поиск или категорию.' : 'В листе «ostatki» нет остатков. Загрузите выгрузку в админке (раздел «Данные»).'}</div>`;
+    return;
+  }
+  const sig = [q, displayCategory, sort, items.length].join('|');
+  const animate = sig !== lastLocSig; lastLocSig = sig;
+  const shown = items.slice(0, displayLimit);
+  let lastGroup = null, html = head;
+  shown.forEach((it, idx) => {
+    if(sort === 'cat'){
+      const group = it.cat || 'Без категории';
+      if(group !== lastGroup){ html += `<div class="disp-group">${escapeHtml(group)}</div>`; lastGroup = group; }
+    }
+    const onDisp = it.cells.filter(c => c.disp).reduce((a, c) => a + c.qty, 0);
+    html += `<div class="disp-item ${animate ? 'anim' : ''}" style="--i:${Math.min(idx, 14)}" data-code="${escapeAttr(it.code)}">
+      <div class="disp-row">
+        <div style="min-width:0;"><div class="disp-skuline"><span class="sku sku-lg">${escapeHtml(it.code)}</span></div><div class="disp-name">${escapeHtml(it.name)}</div></div>
+        <div class="disp-bignum"><div class="n">${it.total}</div><div class="u">на складе</div></div>
+      </div>
+      <div class="disp-cells">${it.cells.map(c => {
+        const hit = q && c.cell.toLowerCase().includes(q);
+        const tags = [c.disp ? 'витрина' : '', c.blocked ? 'недоступна' : '', c.other, c.pend ? 'в очереди −' + c.pend : ''].filter(Boolean);
+        return `<button type="button" class="loc-chip ${c.disp ? 'loc-disp' : ''} ${hit ? 'loc-hit' : ''}" data-qr-cell="${escapeAttr(c.cell)}">${escapeHtml(c.cell)}<b>×${c.qty}</b>${tags.length ? '<i>' + escapeHtml(tags.join(' · ')) + '</i>' : ''}</button>`;
+      }).join('')}</div>
+    </div>`;
+  });
+  if(items.length > shown.length) html += `<button type="button" class="btn btn-ghost" id="dispMoreBtn" style="width:100%;">Показать ещё (${items.length - shown.length})</button>`;
+  wrap.innerHTML = html;
+  document.querySelectorAll('[data-disp-cat]').forEach(b => b.addEventListener('click', () => { displayCategory = b.dataset.dispCat; displayLimit = 50; renderDisplay(); }));
+  wrap.querySelectorAll('[data-qr-cell]').forEach(b => b.addEventListener('click', () => openQrModal(b.dataset.qrCell)));
+  const more = document.getElementById('dispMoreBtn');
+  if(more) more.addEventListener('click', () => { displayLimit += 50; renderDisplay(); });
+}
 function renderDisplay(){
   const wrap = document.getElementById('displayListWrap');
   if(!wrap) return;
+  { const tab = document.getElementById('tab-display'); if(tab) tab.classList.toggle('locate-on', displayLocate);
+    const si = document.getElementById('displaySearch'); if(si) si.placeholder = displayLocate ? 'Товар (название, код) или ячейка...' : 'Поиск по названию или коду товара...'; }
+  if(displayLocate){ fillOstatkiNames(); renderLocate(wrap); updateCartBar(); return; }
   fillOstatkiNames();
   const dw = document.getElementById('dataWarn');
   if(dw) dw.innerHTML = dataWarnHtml();
@@ -3839,8 +3966,8 @@ function updateCartBar(){
   const onTab = document.getElementById('tab-display').classList.contains('active');
   const count = displayCart.length;
   const pcs = displayCart.reduce((a,l) => a + l.qty, 0);
-  document.body.classList.toggle('has-cart-bar', onTab && count > 0);
-  if(!onTab || count === 0){ bar.style.display = 'none'; return; }
+  document.body.classList.toggle('has-cart-bar', onTab && count > 0 && !displayLocate);
+  if(!onTab || count === 0 || displayLocate){ document.body.classList.remove('has-cart-bar'); bar.style.display = 'none'; return; }
   bar.style.display = 'flex';
   document.getElementById('cartBarText').innerHTML = `🛒 В корзине: <b>${count}</b> поз. · <b>${pcs}</b> шт.`;
 }
@@ -4141,6 +4268,9 @@ document.getElementById('cartClearBtn').addEventListener('click', () => {
 
 document.getElementById('displaySearch').addEventListener('input', debounce(() => { displayLimit = 50; renderDisplay(); }, 200));
 document.getElementById('displaySort').addEventListener('change', () => { displayLimit = 50; renderDisplay(); });
+document.getElementById('locSort').addEventListener('change', () => { displayLimit = 50; renderDisplay(); });
+{ const lc = document.getElementById('displayLocate'); lc.checked = displayLocate;
+  lc.addEventListener('change', () => { displayLocate = lc.checked; try { localStorage.setItem(LOC_KEY, displayLocate ? '1' : '0'); } catch(e) {} displayLimit = 50; displayCategory = ''; renderDisplay(); }); }
 document.getElementById('displayShow').addEventListener('change', () => { displayLimit = 50; renderDisplay(); });
 const DISP_FILT_KEY = 'wt_display_filters';
 (function(){
