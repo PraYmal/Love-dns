@@ -1,7 +1,8 @@
-// Служебный файл страницы учёта перемещений. Хранит копию страницы, чтобы она открывалась без связи
+// Служебный файл сайта (стартовая страница и учёт перемещений). Хранит копии этих страниц, чтобы она открывалась без связи
 // (при наличии связи всегда берётся свежая версия), и копию сканера QR. Данные склада он не хранит и не трогает.
-const VER = 'wt-shell-v45';
+const VER = 'wt-shell-v46';
 const JSQR = 'https://cdn.jsdelivr.net/npm/jsqr@1.4.0/dist/jsQR.min.js';
+const GUIDE_PATH = new URL('guide/', self.registration.scope).pathname;   // v46: обучалка большая (картинки), открывается только по сети, копию её страницы не храним
 const PAGE_WAIT_MS = 4000;   // сеть не ответила за это время — открываем сохранённую копию (а свежая подгрузится в фоне)
 
 function keyFor_(url) {
@@ -15,7 +16,8 @@ self.addEventListener('install', e => {
   self.skipWaiting();
   // копия самой страницы (адрес папки) и сканера QR — чтобы не зависеть от второго захода
   e.waitUntil(caches.open(VER).then(c => Promise.all([
-    c.add(new Request(self.registration.scope, { cache: 'reload' })).catch(() => {}),
+    c.add(new Request(self.registration.scope, { cache: 'reload' })).catch(() => {}),                  // стартовая страница
+    c.add(new Request(new URL('app/', self.registration.scope).href, { cache: 'reload' })).catch(() => {}),   // страница учёта перемещений
     c.add(new Request(JSQR, { mode: 'cors' })).catch(() => {})
   ])));
 });
@@ -28,7 +30,10 @@ self.addEventListener('fetch', e => {
   const req = e.request;
   if (req.method !== 'GET') return;
   const url = new URL(req.url);
-  if (req.mode === 'navigate' && url.origin === self.location.origin) { e.respondWith(page_(req)); return; }
+  if (req.mode === 'navigate' && url.origin === self.location.origin) {
+    if (url.pathname.indexOf(GUIDE_PATH) === 0) return;   // обучалка: браузер сам, без нашего кеша
+    e.respondWith(page_(req)); return;
+  }
   if (url.href === JSQR || url.hostname === 'fonts.googleapis.com' || url.hostname === 'fonts.gstatic.com') e.respondWith(lib_(req));
 });
 
